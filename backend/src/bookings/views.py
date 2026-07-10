@@ -1,15 +1,14 @@
-from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from spaces.models import Desk
+from spaces.models import Desk, Room
 
-from .exceptions import DeskAlreadyBooked, OnePerDayViolation
+from .exceptions import DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
 from .models import Booking
-from .serializers import BookingCreateSerializer, BookingSerializer
-from .services import create_desk_booking
+from .serializers import BookingSerializer, CreateBookingSerializer
+from .services import cancel_booking, create_desk_booking, create_room_booking
 
 
 class BookingViewSet(ModelViewSet):
@@ -20,16 +19,22 @@ class BookingViewSet(ModelViewSet):
     def get_queryset(self):
         return (
             Booking.objects.filter(user=self.request.user)
-            .select_related('desk', 'user')
-            .order_by('-booking_date', '-created_at')
+            .select_related('user')
+            .order_by('-date', '-created_at')
         )
 
     def create(self, request, *args, **kwargs):
-        serializer = BookingCreateSerializer(data=request.data)
+        serializer = CreateBookingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
 
-        desk_id = serializer.validated_data['desk_id']
-        booking_date = serializer.validated_data['booking_date']
+        if validated['resource_type'] == Booking.RESOURCE_TYPE_DESK:
+            return self._create_desk_booking(request, validated)
+        return self._create_room_booking(request, validated)
+
+    def _create_desk_booking(self, request, validated):
+        desk_id = validated['desk_id']
+        booking_date = validated['booking_date']
 
         if not Desk.objects.filter(pk=desk_id, is_active=True).exists():
             return Response(
@@ -56,15 +61,41 @@ class BookingViewSet(ModelViewSet):
         output = BookingSerializer(booking)
         return Response(output.data, status=status.HTTP_201_CREATED)
 
+    def _create_room_booking(self, request, validated):
+        room_id = validated['room_id']
+        start_at = validated['start_at']
+        end_at = validated['end_at']
+
+        if not Room.objects.filter(pk=room_id, is_active=True).exists():
+            return Response(
+                {'detail': 'Room not found or inactive.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            booking = create_room_booking(
+                user=request.user,
+                room_id=room_id,
+                start_at=start_at,
+                end_at=end_at,
+            )
+        except RoomAlreadyBooked as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_409_CONFLICT)
+        except Room.DoesNotExist:
+            return Response(
+                {'detail': 'Room not found or inactive.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        output = BookingSerializer(booking)
+        return Response(output.data, status=status.HTTP_201_CREATED)
+
     def destroy(self, request, *args, **kwargs):
-        booking = get_object_or_404(
-            Booking,
-            pk=kwargs['pk'],
-            user=request.user,
-        )
+        booking = self.get_object()
         if booking.status == Booking.STATUS_CANCELLED:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        booking.status = Booking.STATUS_CANCELLED
-        booking.save(update_fields=['status'])
+        cancel_booking(user=request.user, booking=booking)
         return Response(status=status.HTTP_204_NO_CONTENT)

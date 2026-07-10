@@ -1,5 +1,10 @@
+import uuid
+
 from django.conf import settings
+from django.contrib.postgres.constraints import ExclusionConstraint
+from django.contrib.postgres.fields import RangeOperators
 from django.db import models
+from django.db.models import F, Func, Q
 
 
 class Booking(models.Model):
@@ -21,6 +26,7 @@ class Booking(models.Model):
 
     ACTIVE_STATUSES = (STATUS_ACTIVE, STATUS_CHECKED_IN)
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -30,16 +36,12 @@ class Booking(models.Model):
     resource_type = models.CharField(
         max_length=10,
         choices=RESOURCE_TYPE_CHOICES,
-    )
-    desk = models.ForeignKey(
-        'spaces.Desk',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='bookings',
         db_index=True,
     )
-    booking_date = models.DateField()
+    resource_id = models.PositiveIntegerField(db_index=True)
+    date = models.DateField(db_index=True)
+    start_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    end_at = models.DateTimeField(null=True, blank=True, db_index=True)
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -52,14 +54,44 @@ class Booking(models.Model):
     class Meta:
         indexes = [
             models.Index(
-                fields=['desk', 'booking_date', 'status'],
-                name='booking_desk_date_status_idx',
+                fields=['resource_type', 'resource_id', 'date'],
+                name='booking_resource_date_idx',
+            ),
+            models.Index(
+                fields=['resource_type', 'resource_id', 'start_at', 'end_at'],
+                name='booking_resource_time_idx',
             ),
         ]
-        ordering = ['-booking_date', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'date'],
+                condition=Q(resource_type='desk')
+                & Q(status__in=['active', 'checked_in']),
+                name='unique_active_desk_booking_per_user_date',
+            ),
+            models.UniqueConstraint(
+                fields=['resource_id', 'date'],
+                condition=Q(resource_type='desk')
+                & Q(status__in=['active', 'checked_in']),
+                name='unique_active_desk_resource_per_date',
+            ),
+            ExclusionConstraint(
+                name='exclude_overlapping_room_bookings',
+                expressions=[
+                    (F('resource_id'), RangeOperators.EQUAL),
+                    (
+                        Func(F('start_at'), F('end_at'), function='TSTZRANGE'),
+                        RangeOperators.OVERLAPS,
+                    ),
+                ],
+                condition=Q(resource_type='room')
+                & Q(status__in=['active', 'checked_in']),
+            ),
+        ]
+        ordering = ['-date', '-created_at']
 
     def __str__(self):
         return (
             f'Booking {self.id} - {self.user_id} - '
-            f'{self.resource_type} on {self.booking_date}'
+            f'{self.resource_type}:{self.resource_id} on {self.date}'
         )
