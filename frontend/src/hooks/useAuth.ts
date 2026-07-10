@@ -1,19 +1,20 @@
 import { useSelector, useDispatch } from 'react-redux'
 import { useEffect } from 'react'
 import { RootState, AppDispatch } from '@store/index'
-import { getCurrentUser, logout } from '@store/slices/authSlice'
+import { fetchProfile, logout, selectIsAuthenticated } from '@store/authSlice'
 
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>()
-  const { user, token, isAuthenticated, isLoading, error } = useSelector(
-    (state: RootState) => state.auth
+  const { user, accessToken, refreshToken, status, error } = useSelector(
+    (state: RootState) => state.auth,
   )
+  const isAuthenticated = useSelector(selectIsAuthenticated)
 
   useEffect(() => {
-    if (token && !user) {
-      dispatch(getCurrentUser())
+    if (accessToken && !user) {
+      void dispatch(fetchProfile())
     }
-  }, [dispatch, token, user])
+  }, [accessToken, dispatch, user])
 
   const handleLogout = () => {
     dispatch(logout())
@@ -21,9 +22,10 @@ export const useAuth = () => {
 
   return {
     user,
-    token,
+    accessToken,
+    refreshToken,
     isAuthenticated,
-    isLoading,
+    isLoading: status === 'loading',
     error,
     logout: handleLogout,
   }
