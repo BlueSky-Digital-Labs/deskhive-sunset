@@ -1,0 +1,32 @@
+.spaces-success {
+  padding: var(--hd-space-3) var(--hd-space-4);
+  border-radius: var(--hd-radius-lg);
+  background-color: rgba(76, 175, 80, 0.08);
+  color: var(--hd-success-dark);
+  border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.spaces-card__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--hd-space-2);
+}
+
+.spaces-bookings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hd-space-3);
+}
+
+.spaces-bookings h2 {
+  margin: 0;
+  font-size: var(--hd-font-size-xl);
+  color: var(--hd-text-primary);
+}
+
+.spaces-fallback-note {
+  margin: 0;
+  font-size: var(--hd-font-size-sm);
+  color: var(--hd-text-secondary);
+}
