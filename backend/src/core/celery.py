@@ -19,6 +19,8 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
 
+from bookings.tasks import auto_release_no_shows  # noqa: E402, F401
+
 
 @app.task(bind=True)
 def debug_task(self):

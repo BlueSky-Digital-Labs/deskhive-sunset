@@ -1,103 +1,92 @@
-# Task Context: Room Booking (Backend + Frontend)
+# Task Context: Booking Check-in and Auto-Release No-Shows
 
 ## Ticket Scope
 
-Full-stack room booking: backend API with overlap constraints and a React frontend for creating, viewing, and cancelling room reservations.
+Backend workflow for DeskHive bookings:
 
-### Backend (completed)
-- `bookings` app with UUID `Booking` model, `resource_id`, time slots, desk/room constraints
-- `create_room_booking`, `cancel_booking` services; REST API at `/api/v1/bookings/`
-- Room availability integration in `spaces/services/availability.py`
-- 70 backend tests passing
-
-### Frontend (this change)
-- `apiClient.ts` with `postBooking` and `postCancel` (maps to backend `room_id` payload and `DELETE` cancel)
-- Redux slices: `roomBookingsSlice`, `roomAvailabilitySlice`
-- `/rooms` route with date/time pickers, room list, book/cancel actions
-- Vitest coverage for thunks and `RoomsRoute` UI (success, 409 conflict, cancellation)
+- **Check-in API** — authenticated users check in to their own active desk or room bookings
+- **Auto-release Celery task** — periodic job cancels unchecked bookings after a configurable grace period
+- **Health probe** — reports auto-release configuration for ops/monitoring
+- **Celery Beat schedule** — registers `auto_release_no_shows` on a configurable interval
 
 ### Out of scope
-- Check-in workflow
-- Toast library (inline success/error panels used instead)
-- Celery booking tasks
+
+- Frontend check-in UI
+- Email/push notifications on auto-release
+- PostgreSQL-only concurrent auto-release tests
 
 ## Key Implementation Decisions
 
-### Backend
-1. Settings in `core.settings.base` (not flat `settings.py`); `django.contrib.postgres` for `ExclusionConstraint`
-2. Room create payload: `{ room_id, start_at, end_at }` (ISO 8601)
-3. Cancel via `DELETE /api/v1/bookings/{uuid}/` (idempotent 204)
-4. SQLite tests use service-layer overlap checks; PostgreSQL enforces `ExclusionConstraint` + `btree_gist`
-
-### Frontend
-1. **API client** — Task specifies `postBooking({ resource_type, resource_id, start_at, end_at })`; client maps `resource_type: 'room'` to backend `room_id`. `postCancel` uses `DELETE` (backend has no `/cancel` POST endpoint).
-2. **Store** — Slices registered in `frontend/src/store/index.ts` (project has no `app/store.ts`).
-3. **Availability** — `fetchRooms({ date })` calls `/api/v1/availability/rooms/?start=&end=` derived from date + optional time range; falls back to `GET /api/v1/rooms/` on failure (manual selection).
-4. **UI** — Separate date + time inputs combined to ISO strings; success shown as auto-dismissing inline panel (no toast library in project).
-5. **409 handling** — Mapped to `lastError: { code, message }` in `roomBookingsSlice`; displayed inline in `RoomsRoute`.
-6. **Auth** — `/rooms` guarded via existing `ProtectedRoute` / `selectIsAuthenticated`.
+1. **Settings location** — Project uses `core.settings.base` (not a flat `settings.py`). Booking auto-release settings are env-driven with sensible defaults.
+2. **Check-in endpoint** — `POST /api/v1/bookings/{uuid}/check-in/` returns the updated booking (`200`). Owner-only; `404` for other users' bookings.
+3. **Check-in windows**
+   - **Desk** — opens at start of booking date; closes at desk deadline (`BOOKING_DESK_CHECK_IN_DEADLINE_TIME`, default `10:00`) plus grace (`BOOKING_AUTO_RELEASE_GRACE_MINUTES`).
+   - **Room** — opens `BOOKING_CHECK_IN_EARLY_MINUTES` before `start_at`; closes at `end_at`.
+4. **Auto-release cutoffs**
+   - **Desk** — deadline time on booking date + grace minutes
+   - **Room** — `start_at` + grace minutes (unchecked active bookings only)
+5. **Checked-in bookings** — never auto-released (`status=checked_in` excluded by querying only `active`).
+6. **Celery** — explicit import in `core/celery.py` plus `autodiscover_tasks()`; Beat interval from `BOOKING_AUTO_RELEASE_BEAT_INTERVAL_SECONDS` (default 300s).
+7. **Health endpoint** — `GET /api/v1/bookings/health/auto-release/` (unauthenticated) returns enabled flag and timing settings.
+8. **Docker** — Redis already present in `docker-compose.dev.yml` / `docker-compose.uat.yml`; added auto-release env vars to backend/celery services.
 
 ## Assumptions
 
-- Room bookings use timezone-aware ISO datetimes from `new Date(date + time).toISOString()`.
-- Backend cancel is `DELETE`, not `POST .../cancel` as in the frontend task template.
-- Availability API uses `start`/`end` query params (not `date` alone); frontend derives range from date + times.
-- Existing `/spaces/rooms` availability page remains; `/rooms` is the booking workflow.
+- Desk no-show deadline is a fixed local time (`10:00` UTC by default) on the booking date, not tied to room-style `start_at`.
+- Auto-release cancels bookings (`status=cancelled`) rather than a separate `no_show` status.
+- Idempotent re-check-in returns `400` with a clear message.
+- SQLite test DB is sufficient; overlap/exclusion constraints remain PostgreSQL-specific from prior work.
 
 ## Files Changed
 
-### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/*` | Model, services, API, migrations, tests |
-| `backend/src/core/settings/base.py` | `django.contrib.postgres` |
-| `backend/src/spaces/services/availability.py` | Room availability from bookings |
+| `backend/src/bookings/exceptions.py` | `CheckInNotAllowed` exception |
+| `backend/src/bookings/services.py` | `check_in_booking`, cutoff helpers, `release_no_show_bookings` |
+| `backend/src/bookings/tasks.py` | `auto_release_no_shows` Celery task |
+| `backend/src/bookings/views.py` | `BookingCheckInView` |
+| `backend/src/bookings/health.py` | `AutoReleaseHealthView` |
+| `backend/src/bookings/urls.py` | Check-in and health routes |
+| `backend/src/core/celery.py` | Import `auto_release_no_shows` |
+| `backend/src/core/settings/base.py` | Auto-release settings + Beat schedule entry |
+| `backend/src/bookings/tests/test_check_in.py` | Check-in service and API tests |
+| `backend/src/bookings/tests/test_auto_release.py` | Auto-release task, service, health tests |
+| `backend/env.example` | Auto-release env documentation |
+| `env.example` | Root env template for auto-release vars |
+| `docker-compose.dev.yml` | Auto-release env on backend/celery services |
+| `docker-compose.uat.yml` | Auto-release env on backend/celery services |
 
-### Frontend
-| File | Why |
-|------|-----|
-| `frontend/src/lib/apiClient.ts` | `postBooking`, `postCancel`, `getBookings` |
-| `frontend/src/features/rooms/roomBookingsSlice.ts` | Create/cancel thunks and state |
-| `frontend/src/features/rooms/roomAvailabilitySlice.ts` | `fetchRooms` with fallback |
-| `frontend/src/routes/rooms/RoomsRoute.tsx` | Booking UI |
-| `frontend/src/features/rooms/rooms.css` | Success panel and card actions |
-| `frontend/src/store/index.ts` | Register new reducers |
-| `frontend/src/App.tsx` | `/rooms` protected route |
-| `frontend/src/test/test-utils.tsx` | Test store includes room slices |
-| `frontend/src/features/rooms/*.test.ts` | Thunk unit tests |
-| `frontend/src/routes/rooms/RoomsRoute.test.tsx` | UI integration tests |
+## API Endpoints
 
-## API Endpoints (used by frontend)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/bookings/{uuid}/check-in/` | JWT | Check in to own active booking |
+| GET | `/api/v1/bookings/health/auto-release/` | None | Auto-release configuration probe |
 
-| Method | Path | Body / params |
-|--------|------|---------------|
-| POST | `/api/v1/bookings/` | `{ room_id, start_at, end_at }` |
-| DELETE | `/api/v1/bookings/{uuid}/` | Cancel booking |
-| GET | `/api/v1/bookings/` | List user bookings |
-| GET | `/api/v1/availability/rooms/` | `?start=&end=` (ISO 8601) |
-| GET | `/api/v1/rooms/` | Manual fallback room list |
+## Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `BOOKING_AUTO_RELEASE_ENABLED` | `True` | Toggle periodic no-show release |
+| `BOOKING_AUTO_RELEASE_GRACE_MINUTES` | `15` | Grace after deadline/start before release |
+| `BOOKING_DESK_CHECK_IN_DEADLINE_TIME` | `10:00` | Desk check-in deadline (HH:MM) |
+| `BOOKING_CHECK_IN_EARLY_MINUTES` | `30` | How early room check-in opens |
+| `BOOKING_AUTO_RELEASE_BEAT_INTERVAL_SECONDS` | `300` | Celery Beat interval |
 
 ## Open Questions / Follow-ups
 
-- Add `/rooms` link to sidebar navigation
-- Shared `conftest`/fixtures for desk and room booking tests
-- Check-in workflow (backend + frontend)
-- True PostgreSQL concurrent booking tests
+- Frontend check-in button/flow on `/rooms` and desk pages
+- Admin visibility into auto-released bookings (audit log)
+- Per-building desk deadline times instead of a single global setting
+- Metrics: last run timestamp / release count on health endpoint
 
 ## Verification
 
 ```bash
-# Backend
 cd backend
 SECRET_KEY=test-secret-key PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
 SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/ -v
-
-# Frontend
-cd frontend
-npm test
-npm run lint
-npm run build
+python3 -m flake8 src/bookings/ src/core/celery.py src/core/settings/base.py
 ```
 
-- Backend: 70 tests passing
-- Frontend: 24 tests passing
+- Backend: **87 tests passing** (17 new for check-in / auto-release)

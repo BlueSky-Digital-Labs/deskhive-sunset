@@ -8,3 +8,7 @@ class DeskAlreadyBooked(Exception):
 
 class RoomAlreadyBooked(Exception):
     """Raised when the target room has an overlapping active booking."""
+
+
+class CheckInNotAllowed(Exception):
+    """Raised when a booking cannot be checked in."""
