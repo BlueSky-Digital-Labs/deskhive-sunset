@@ -9,6 +9,7 @@ import { DashboardPage } from '@pages/dashboard'
 import FloorsPage from '@/features/spaces/FloorsPage'
 import DesksPage from '@/features/spaces/DesksPage'
 import RoomsPage from '@/features/spaces/RoomsPage'
+import RoomsRoute from '@/routes/rooms/RoomsRoute'
 import ProtectedRoute from '@components/ProtectedRoute'
 
 function App() {
@@ -61,6 +62,14 @@ function App() {
         element={
           <ProtectedRoute>
             <RoomsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/rooms"
+        element={
+          <ProtectedRoute>
+            <RoomsRoute />
           </ProtectedRoute>
         }
       />

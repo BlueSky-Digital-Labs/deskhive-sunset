@@ -113,8 +113,8 @@ class TestDeskBookingService:
 
         assert booking.id is not None
         assert booking.user == user
-        assert booking.desk == desk
-        assert booking.booking_date == booking_date
+        assert booking.resource_id == desk.id
+        assert booking.date == booking_date
         assert booking.resource_type == Booking.RESOURCE_TYPE_DESK
         assert booking.status == Booking.STATUS_ACTIVE
 

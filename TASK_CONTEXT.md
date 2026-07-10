@@ -1,76 +1,103 @@
-# Task Context: DeskHive Sunset — Bookings Feature (Backend)
+# Task Context: Room Booking (Backend + Frontend)
 
 ## Ticket Scope
 
-Implement a `bookings` Django app for desk reservations with transactional conflict handling, REST API endpoints, availability integration, and tests.
+Full-stack room booking: backend API with overlap constraints and a React frontend for creating, viewing, and cancelling room reservations.
 
-### In scope (this change)
-- `bookings` app with `Booking` model (desk bookings v1)
-- Service layer with `select_for_update(nowait=True)` desk locking
-- `BookingViewSet` — create, list, retrieve, logical cancel (destroy)
-- Desk availability computed from active/checked-in bookings
-- Migration with partial unique index on `(user, booking_date)` for active desk bookings (one-per-day rule)
-- Pytest coverage for creation, conflicts, cancellation, and concurrent lock contention
+### Backend (completed)
+- `bookings` app with UUID `Booking` model, `resource_id`, time slots, desk/room constraints
+- `create_room_booking`, `cancel_booking` services; REST API at `/api/v1/bookings/`
+- Room availability integration in `spaces/services/availability.py`
+- 70 backend tests passing
+
+### Frontend (this change)
+- `apiClient.ts` with `postBooking` and `postCancel` (maps to backend `room_id` payload and `DELETE` cancel)
+- Redux slices: `roomBookingsSlice`, `roomAvailabilitySlice`
+- `/rooms` route with date/time pickers, room list, book/cancel actions
+- Vitest coverage for thunks and `RoomsRoute` UI (success, 409 conflict, cancellation)
 
 ### Out of scope
-- Room booking creation API (model supports `resource_type='room'` for future use)
-- Check-in workflow (`checked_in_at` field reserved)
-- Frontend booking UI
+- Check-in workflow
+- Toast library (inline success/error panels used instead)
+- Celery booking tasks
 
 ## Key Implementation Decisions
 
-1. **Settings** — Registered `bookings` in `LOCAL_APPS` via `backend/src/core/settings/base.py` (project uses settings package, not a flat `settings.py`).
-2. **Booking statuses** — `active`, `checked_in`, `cancelled`. Destroy sets `cancelled` instead of deleting rows.
-3. **Conflict handling** — `OnePerDayViolation` (user already booked a desk that day) and `DeskAlreadyBooked` (desk taken or lock contention). Both return HTTP 409 from the API.
-4. **Transactional guard** — `create_desk_booking()` wraps logic in `transaction.atomic()`, locks the desk row with `select_for_update(nowait=True)`, then checks user and desk conflicts before insert.
-5. **Partial unique index** — Added in migration `0002_add_partial_unique_index` with `atomic = False`. Uses `CREATE UNIQUE INDEX CONCURRENTLY` on PostgreSQL; SQLite test DB uses the same index without `CONCURRENTLY` via `RunPython` vendor branching.
-6. **Composite index** — `Index(fields=['desk', 'booking_date', 'status'])` on the model for availability lookups.
-7. **Availability** — `get_desk_availability()` marks desks unavailable when an `active` or `checked_in` desk booking exists for the date.
-8. **API routing** — Bookings mounted at `/api/v1/bookings/` alongside spaces routes.
+### Backend
+1. Settings in `core.settings.base` (not flat `settings.py`); `django.contrib.postgres` for `ExclusionConstraint`
+2. Room create payload: `{ room_id, start_at, end_at }` (ISO 8601)
+3. Cancel via `DELETE /api/v1/bookings/{uuid}/` (idempotent 204)
+4. SQLite tests use service-layer overlap checks; PostgreSQL enforces `ExclusionConstraint` + `btree_gist`
+
+### Frontend
+1. **API client** — Task specifies `postBooking({ resource_type, resource_id, start_at, end_at })`; client maps `resource_type: 'room'` to backend `room_id`. `postCancel` uses `DELETE` (backend has no `/cancel` POST endpoint).
+2. **Store** — Slices registered in `frontend/src/store/index.ts` (project has no `app/store.ts`).
+3. **Availability** — `fetchRooms({ date })` calls `/api/v1/availability/rooms/?start=&end=` derived from date + optional time range; falls back to `GET /api/v1/rooms/` on failure (manual selection).
+4. **UI** — Separate date + time inputs combined to ISO strings; success shown as auto-dismissing inline panel (no toast library in project).
+5. **409 handling** — Mapped to `lastError: { code, message }` in `roomBookingsSlice`; displayed inline in `RoomsRoute`.
+6. **Auth** — `/rooms` guarded via existing `ProtectedRoute` / `selectIsAuthenticated`.
+
+## Assumptions
+
+- Room bookings use timezone-aware ISO datetimes from `new Date(date + time).toISOString()`.
+- Backend cancel is `DELETE`, not `POST .../cancel` as in the frontend task template.
+- Availability API uses `start`/`end` query params (not `date` alone); frontend derives range from date + times.
+- Existing `/spaces/rooms` availability page remains; `/rooms` is the booking workflow.
 
 ## Files Changed
 
+### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/apps.py` | `BookingsConfig` with name `bookings` |
-| `backend/src/bookings/models.py` | `Booking` model, indexes, status/resource choices |
-| `backend/src/bookings/exceptions.py` | `OnePerDayViolation`, `DeskAlreadyBooked` |
-| `backend/src/bookings/serializers.py` | `BookingCreateSerializer`, `BookingSerializer` |
-| `backend/src/bookings/services.py` | `create_desk_booking()` with row lock and conflict checks |
-| `backend/src/bookings/views.py` | `BookingViewSet` (create/list/retrieve/destroy) |
-| `backend/src/bookings/urls.py` | Router registration for bookings |
-| `backend/src/bookings/migrations/0001_initial.py` | Model migration |
-| `backend/src/bookings/migrations/0002_add_partial_unique_index.py` | Partial unique index with `atomic = False` |
-| `backend/src/bookings/tests/test_desk_booking.py` | Service and API tests |
-| `backend/src/core/settings/base.py` | Add `bookings` to `INSTALLED_APPS` |
-| `backend/src/core/urls.py` | Include bookings URLs under `/api/v1/` |
-| `backend/src/spaces/services/availability.py` | Desk availability from `Booking` records |
+| `backend/src/bookings/*` | Model, services, API, migrations, tests |
+| `backend/src/core/settings/base.py` | `django.contrib.postgres` |
+| `backend/src/spaces/services/availability.py` | Room availability from bookings |
 
-## API Endpoints
+### Frontend
+| File | Why |
+|------|-----|
+| `frontend/src/lib/apiClient.ts` | `postBooking`, `postCancel`, `getBookings` |
+| `frontend/src/features/rooms/roomBookingsSlice.ts` | Create/cancel thunks and state |
+| `frontend/src/features/rooms/roomAvailabilitySlice.ts` | `fetchRooms` with fallback |
+| `frontend/src/routes/rooms/RoomsRoute.tsx` | Booking UI |
+| `frontend/src/features/rooms/rooms.css` | Success panel and card actions |
+| `frontend/src/store/index.ts` | Register new reducers |
+| `frontend/src/App.tsx` | `/rooms` protected route |
+| `frontend/src/test/test-utils.tsx` | Test store includes room slices |
+| `frontend/src/features/rooms/*.test.ts` | Thunk unit tests |
+| `frontend/src/routes/rooms/RoomsRoute.test.tsx` | UI integration tests |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/v1/bookings/` | Create desk booking (`desk_id`, `booking_date`) |
-| GET | `/api/v1/bookings/` | List current user's bookings (paginated) |
-| GET | `/api/v1/bookings/{id}/` | Retrieve own booking |
-| DELETE | `/api/v1/bookings/{id}/` | Cancel booking (sets `status=cancelled`) |
+## API Endpoints (used by frontend)
 
-All require `Authorization: Bearer <access_token>`.
+| Method | Path | Body / params |
+|--------|------|---------------|
+| POST | `/api/v1/bookings/` | `{ room_id, start_at, end_at }` |
+| DELETE | `/api/v1/bookings/{uuid}/` | Cancel booking |
+| GET | `/api/v1/bookings/` | List user bookings |
+| GET | `/api/v1/availability/rooms/` | `?start=&end=` (ISO 8601) |
+| GET | `/api/v1/rooms/` | Manual fallback room list |
 
 ## Open Questions / Follow-ups
 
-- Room booking service and API endpoints
-- Check-in endpoint to set `checked_in_at` and `status=checked_in`
-- Frontend booking flow wired to new endpoints
-- True multi-thread concurrent booking tests under PostgreSQL (SQLite used in test settings)
+- Add `/rooms` link to sidebar navigation
+- Shared `conftest`/fixtures for desk and room booking tests
+- Check-in workflow (backend + frontend)
+- True PostgreSQL concurrent booking tests
 
 ## Verification
 
 ```bash
+# Backend
 cd backend
 SECRET_KEY=test-secret-key PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
-SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
 SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/ -v
+
+# Frontend
+cd frontend
+npm test
+npm run lint
+npm run build
 ```
 
-- Backend: 55 tests passing (16 bookings + 24 spaces + 10 accounts + 5 authentication)
+- Backend: 70 tests passing
+- Frontend: 24 tests passing
