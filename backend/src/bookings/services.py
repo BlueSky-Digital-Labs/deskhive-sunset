@@ -1,12 +1,60 @@
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.utils import OperationalError
+from django.utils import timezone
 
 from spaces.models import Desk, Room
 
-from .exceptions import DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
+from .exceptions import (
+    CheckInNotAllowed,
+    DeskAlreadyBooked,
+    OnePerDayViolation,
+    RoomAlreadyBooked,
+)
 from .models import Booking
+
+
+def _desk_check_in_deadline_time() -> time:
+    raw = settings.BOOKING_DESK_CHECK_IN_DEADLINE_TIME
+    hour, minute = map(int, raw.split(':'))
+    return time(hour=hour, minute=minute)
+
+
+def desk_auto_release_cutoff(booking: Booking) -> datetime:
+    """Return when an unchecked desk booking should be auto-released."""
+    deadline_time = _desk_check_in_deadline_time()
+    tz = timezone.get_current_timezone()
+    deadline = timezone.make_aware(
+        datetime.combine(booking.date, deadline_time),
+        tz,
+    )
+    grace = timedelta(minutes=settings.BOOKING_AUTO_RELEASE_GRACE_MINUTES)
+    return deadline + grace
+
+
+def room_auto_release_cutoff(booking: Booking) -> datetime:
+    """Return when an unchecked room booking should be auto-released."""
+    grace = timedelta(minutes=settings.BOOKING_AUTO_RELEASE_GRACE_MINUTES)
+    return booking.start_at + grace
+
+
+def check_in_opens_at(booking: Booking) -> datetime:
+    early = timedelta(minutes=settings.BOOKING_CHECK_IN_EARLY_MINUTES)
+    if booking.resource_type == Booking.RESOURCE_TYPE_DESK:
+        tz = timezone.get_current_timezone()
+        return timezone.make_aware(
+            datetime.combine(booking.date, time.min),
+            tz,
+        )
+    return booking.start_at - early
+
+
+def check_in_closes_at(booking: Booking) -> datetime:
+    if booking.resource_type == Booking.RESOURCE_TYPE_DESK:
+        return desk_auto_release_cutoff(booking)
+    return booking.end_at
 
 
 def create_desk_booking(user, desk_id: int, booking_date: date) -> Booking:
@@ -144,3 +192,76 @@ def cancel_booking(user, booking: Booking) -> Booking:
             locked_booking.status = Booking.STATUS_CANCELLED
             locked_booking.save(update_fields=['status'])
         return locked_booking
+
+
+def check_in_booking(user, booking: Booking) -> Booking:
+    """
+    Mark an active booking as checked in for the owning user.
+
+    Raises CheckInNotAllowed when the booking is not eligible or outside
+    the check-in window.
+    """
+    with transaction.atomic():
+        locked_booking = (
+            Booking.objects.select_for_update()
+            .filter(pk=booking.pk, user=user)
+            .get()
+        )
+
+        if locked_booking.status == Booking.STATUS_CANCELLED:
+            raise CheckInNotAllowed('Cannot check in to a cancelled booking.')
+        if locked_booking.status == Booking.STATUS_CHECKED_IN:
+            raise CheckInNotAllowed('Booking is already checked in.')
+        if locked_booking.status != Booking.STATUS_ACTIVE:
+            raise CheckInNotAllowed('Booking is not eligible for check-in.')
+
+        now = timezone.now()
+        opens_at = check_in_opens_at(locked_booking)
+        closes_at = check_in_closes_at(locked_booking)
+
+        if now < opens_at:
+            raise CheckInNotAllowed('Check-in window has not opened yet.')
+        if now > closes_at:
+            raise CheckInNotAllowed('Check-in window has closed.')
+
+        locked_booking.status = Booking.STATUS_CHECKED_IN
+        locked_booking.checked_in_at = now
+        locked_booking.save(update_fields=['status', 'checked_in_at'])
+        return locked_booking
+
+
+def release_no_show_bookings() -> dict:
+    """
+    Cancel active bookings not checked in before their release cutoff.
+
+    Returns a summary dict with the number of bookings released.
+    """
+    if not settings.BOOKING_AUTO_RELEASE_ENABLED:
+        return {'released': 0, 'enabled': False}
+
+    now = timezone.now()
+    released = 0
+
+    desk_candidates = Booking.objects.filter(
+        status=Booking.STATUS_ACTIVE,
+        resource_type=Booking.RESOURCE_TYPE_DESK,
+        date__lte=now.date(),
+    )
+    for booking in desk_candidates.iterator():
+        if now > desk_auto_release_cutoff(booking):
+            booking.status = Booking.STATUS_CANCELLED
+            booking.save(update_fields=['status'])
+            released += 1
+
+    room_candidates = Booking.objects.filter(
+        status=Booking.STATUS_ACTIVE,
+        resource_type=Booking.RESOURCE_TYPE_ROOM,
+        start_at__isnull=False,
+    )
+    for booking in room_candidates.iterator():
+        if now > room_auto_release_cutoff(booking):
+            booking.status = Booking.STATUS_CANCELLED
+            booking.save(update_fields=['status'])
+            released += 1
+
+    return {'released': released, 'enabled': True}
