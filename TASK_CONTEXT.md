@@ -1,104 +1,76 @@
-# Task Context: DeskHive Sunset — Spaces Feature (Backend + Frontend)
+# Task Context: DeskHive Sunset — Bookings Feature (Backend)
 
 ## Ticket Scope
 
-### Backend (completed)
-JWT-secured `spaces` Django app with Floor, Desk, and Room models, CRUD REST endpoints, and stubbed availability APIs.
+Implement a `bookings` Django app for desk reservations with transactional conflict handling, REST API endpoints, availability integration, and tests.
 
-### Frontend (this change)
-React pages and API integration for browsing floors and checking desk/room availability:
-- Protected routes: `/spaces/floors`, `/spaces/desks`, `/spaces/rooms`
-- API client functions in `features/spaces/api.ts` using shared `lib/api.ts`
-- Local component state via `useState` + `useEffect` (no Redux slice — auth already in Redux)
-- Shared `AvailabilityBadge` and `SkeletonList` components
-- Vitest + RTL tests for all three pages
+### In scope (this change)
+- `bookings` app with `Booking` model (desk bookings v1)
+- Service layer with `select_for_update(nowait=True)` desk locking
+- `BookingViewSet` — create, list, retrieve, logical cancel (destroy)
+- Desk availability computed from active/checked-in bookings
+- Migration with partial unique index on `(user, booking_date)` for active desk bookings (one-per-day rule)
+- Pytest coverage for creation, conflicts, cancellation, and concurrent lock contention
 
 ### Out of scope
-- Real booking/reservation UI logic (availability is stubbed as all-available on backend)
-- Sidebar navigation links to spaces pages (routes are direct URL access)
-- Docker configuration changes
+- Room booking creation API (model supports `resource_type='room'` for future use)
+- Check-in workflow (`checked_in_at` field reserved)
+- Frontend booking UI
 
 ## Key Implementation Decisions
 
-### Backend
-1. **`spaces` app** at `backend/src/spaces/` with models, serializers, viewsets, availability service.
-2. **Floor uniqueness** — `UniqueConstraint` on `(building, level, name)`.
-3. **Desk/Room indexes** — `Index(fields=['floor', 'is_active'])` for availability queries.
-4. **Availability stub** — active resources return `available: true` until bookings exist.
-5. **Serializer validation** — `UniqueTogetherValidator` returns HTTP 400 for duplicates.
-
-### Frontend
-1. **Local state** — pages fetch on mount / input change with `useEffect`; no `spacesSlice` needed for v1.
-2. **API layer** — `features/spaces/api.ts` unwraps paginated list responses (`results`) and calls availability endpoints with query params.
-3. **401 handling** — delegated to shared `apiFetch` (refresh retry, then logout).
-4. **DesksPage** — date picker defaults to today; optional client-side floor filter from `getFloors()`.
-5. **RoomsPage** — `datetime-local` inputs; blocks fetch and shows validation error when `start >= end`.
-6. **Layout** — all pages use existing `DashboardLayout` for consistent shell.
+1. **Settings** — Registered `bookings` in `LOCAL_APPS` via `backend/src/core/settings/base.py` (project uses settings package, not a flat `settings.py`).
+2. **Booking statuses** — `active`, `checked_in`, `cancelled`. Destroy sets `cancelled` instead of deleting rows.
+3. **Conflict handling** — `OnePerDayViolation` (user already booked a desk that day) and `DeskAlreadyBooked` (desk taken or lock contention). Both return HTTP 409 from the API.
+4. **Transactional guard** — `create_desk_booking()` wraps logic in `transaction.atomic()`, locks the desk row with `select_for_update(nowait=True)`, then checks user and desk conflicts before insert.
+5. **Partial unique index** — Added in migration `0002_add_partial_unique_index` with `atomic = False`. Uses `CREATE UNIQUE INDEX CONCURRENTLY` on PostgreSQL; SQLite test DB uses the same index without `CONCURRENTLY` via `RunPython` vendor branching.
+6. **Composite index** — `Index(fields=['desk', 'booking_date', 'status'])` on the model for availability lookups.
+7. **Availability** — `get_desk_availability()` marks desks unavailable when an `active` or `checked_in` desk booking exists for the date.
+8. **API routing** — Bookings mounted at `/api/v1/bookings/` alongside spaces routes.
 
 ## Files Changed
 
-### Backend
 | File | Why |
 |------|-----|
-| `backend/src/spaces/` | Models, serializers, views, availability service, URLs, migrations, tests |
-| `backend/src/core/settings/base.py` | Register `spaces` app |
-| `backend/src/core/urls.py` | Mount `/api/v1/` spaces routes |
+| `backend/src/bookings/apps.py` | `BookingsConfig` with name `bookings` |
+| `backend/src/bookings/models.py` | `Booking` model, indexes, status/resource choices |
+| `backend/src/bookings/exceptions.py` | `OnePerDayViolation`, `DeskAlreadyBooked` |
+| `backend/src/bookings/serializers.py` | `BookingCreateSerializer`, `BookingSerializer` |
+| `backend/src/bookings/services.py` | `create_desk_booking()` with row lock and conflict checks |
+| `backend/src/bookings/views.py` | `BookingViewSet` (create/list/retrieve/destroy) |
+| `backend/src/bookings/urls.py` | Router registration for bookings |
+| `backend/src/bookings/migrations/0001_initial.py` | Model migration |
+| `backend/src/bookings/migrations/0002_add_partial_unique_index.py` | Partial unique index with `atomic = False` |
+| `backend/src/bookings/tests/test_desk_booking.py` | Service and API tests |
+| `backend/src/core/settings/base.py` | Add `bookings` to `INSTALLED_APPS` |
+| `backend/src/core/urls.py` | Include bookings URLs under `/api/v1/` |
+| `backend/src/spaces/services/availability.py` | Desk availability from `Booking` records |
 
-### Frontend
-| File | Why |
-|------|-----|
-| `frontend/src/App.tsx` | Protected routes for floors, desks, rooms pages |
-| `frontend/src/features/spaces/api.ts` | Spaces API functions |
-| `frontend/src/features/spaces/types.ts` | Floor, Desk, Room, availability types |
-| `frontend/src/features/spaces/FloorsPage.tsx` | Floor list with loading/empty/error states |
-| `frontend/src/features/spaces/DesksPage.tsx` | Desk availability by date with floor filter |
-| `frontend/src/features/spaces/RoomsPage.tsx` | Room availability by datetime range |
-| `frontend/src/features/spaces/spaces.css` | Shared spaces page styles |
-| `frontend/src/features/spaces/*.test.tsx` | Page render and interaction tests |
-| `frontend/src/components/AvailabilityBadge.tsx` | Available/occupied status badge |
-| `frontend/src/components/SkeletonList.tsx` | Loading skeleton placeholder |
-
-## API Endpoints (Backend)
+## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/floors/` | List floors (paginated) |
-| GET | `/api/v1/desks/` | List desks (paginated) |
-| GET | `/api/v1/rooms/` | List rooms (paginated) |
-| GET | `/api/v1/availability/desks/?date=YYYY-MM-DD` | Desk availability (stub) |
-| GET | `/api/v1/availability/rooms/?start=ISO&end=ISO` | Room availability (stub) |
+| POST | `/api/v1/bookings/` | Create desk booking (`desk_id`, `booking_date`) |
+| GET | `/api/v1/bookings/` | List current user's bookings (paginated) |
+| GET | `/api/v1/bookings/{id}/` | Retrieve own booking |
+| DELETE | `/api/v1/bookings/{id}/` | Cancel booking (sets `status=cancelled`) |
 
 All require `Authorization: Bearer <access_token>`.
 
-## Assumptions and Limitations (v1)
-
-- Availability always shows active resources as available; occupied state appears only after bookings integration.
-- List endpoints are paginated (page size 20); frontend reads first page only.
-- Floor filter on DesksPage is client-side over availability results.
-- RoomsPage converts `datetime-local` values to ISO before API calls.
-- No sidebar links yet — navigate directly to `/spaces/*` routes.
-
 ## Open Questions / Follow-ups
 
-- Add sidebar navigation entries for spaces pages.
-- Integrate booking models for real availability on backend and frontend.
-- Add pagination UI if floor/desk/room counts exceed page size.
-- Cache availability responses in Redux if cross-page sharing is needed.
+- Room booking service and API endpoints
+- Check-in endpoint to set `checked_in_at` and `status=checked_in`
+- Frontend booking flow wired to new endpoints
+- True multi-thread concurrent booking tests under PostgreSQL (SQLite used in test settings)
 
 ## Verification
 
 ```bash
-# Backend
 cd backend
-PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
-PYTHONPATH=src python3 -m pytest src/spaces/tests/test_spaces_api.py src/accounts/tests/test_auth.py -v
-
-# Frontend
-cd frontend
-npm run test
-npm run lint
-npm run build
+SECRET_KEY=test-secret-key PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
+SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
+SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/ -v
 ```
 
-- Backend: 34 tests passing (24 spaces + 10 accounts)
-- Frontend: 13 tests passing (7 spaces + 6 existing auth/routing)
+- Backend: 55 tests passing (16 bookings + 24 spaces + 10 accounts + 5 authentication)
