@@ -36,6 +36,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
     'django_celery_beat',
@@ -43,6 +44,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'authentication',
+    'accounts',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -176,7 +178,7 @@ SPECTACULAR_SETTINGS = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=env.int("SIMPLE_JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=60)),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=env.int("SIMPLE_JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=5)),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=env.int("SIMPLE_JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7)),
     'ROTATE_REFRESH_TOKENS': env.bool("SIMPLE_JWT_ROTATE_REFRESH_TOKENS", default=True),
     'BLACKLIST_AFTER_ROTATION': env.bool("SIMPLE_JWT_BLACKLIST_AFTER_ROTATION", default=True),

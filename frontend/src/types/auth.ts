@@ -2,14 +2,15 @@ export interface User {
   id: number
   email: string
   date_joined: string
-  is_active: boolean
 }
 
+export type AuthStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
+
 export interface AuthState {
+  accessToken: string | null
+  refreshToken: string | null
   user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
+  status: AuthStatus
   error: string | null
 }
 
@@ -18,14 +19,16 @@ export interface LoginCredentials {
   password: string
 }
 
-export interface RegisterCredentials {
+export interface SignupCredentials {
   email: string
   password: string
-  password_confirm: string
 }
 
-export interface AuthResponse {
-  user: User
+export interface TokenPair {
   access: string
   refresh: string
+}
+
+export interface RefreshResponse {
+  access: string
 }

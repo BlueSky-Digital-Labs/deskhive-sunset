@@ -1,14 +1,15 @@
 import { useSelector, useDispatch } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { RootState } from '@store/index'
-import { logout } from '@store/slices/authSlice'
+import { logout, selectIsAuthenticated } from '@store/authSlice'
 import { Button } from '@components/atoms/Button'
 import { Logo } from '@components/atoms/Logo'
 import { User, LogOut } from 'lucide-react'
 import './Header.css'
 
 export const Header = () => {
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth)
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const user = useSelector((state: RootState) => state.auth.user)
   const dispatch = useDispatch()
   const navigate = useNavigate()
 
@@ -52,9 +53,9 @@ export const Header = () => {
                   Login
                 </Button>
               </Link>
-              <Link to="/register">
+              <Link to="/signup">
                 <Button variant="primary" size="sm">
-                  Register
+                  Sign up
                 </Button>
               </Link>
             </div>

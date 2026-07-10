@@ -13,6 +13,7 @@ export default defineConfig({
       '@hooks': path.resolve(import.meta.dirname || __dirname, './src/hooks'),
       '@utils': path.resolve(import.meta.dirname || __dirname, './src/utils'),
       '@store': path.resolve(import.meta.dirname || __dirname, './src/store'),
+      '@lib': path.resolve(import.meta.dirname || __dirname, './src/lib'),
       '@services': path.resolve(import.meta.dirname || __dirname, './src/services'),
       '@types': path.resolve(import.meta.dirname || __dirname, './src/types'),
       '@assets': path.resolve(import.meta.dirname || __dirname, './src/assets')
