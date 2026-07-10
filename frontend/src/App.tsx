@@ -6,6 +6,9 @@ import { refresh, selectIsAuthenticated } from '@store/authSlice'
 import Login from '@/pages/Login'
 import Signup from '@/pages/Signup'
 import { DashboardPage } from '@pages/dashboard'
+import FloorsPage from '@/features/spaces/FloorsPage'
+import DesksPage from '@/features/spaces/DesksPage'
+import RoomsPage from '@/features/spaces/RoomsPage'
 import ProtectedRoute from '@components/ProtectedRoute'
 
 function App() {
@@ -34,6 +37,30 @@ function App() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/spaces/floors"
+        element={
+          <ProtectedRoute>
+            <FloorsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/spaces/desks"
+        element={
+          <ProtectedRoute>
+            <DesksPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/spaces/rooms"
+        element={
+          <ProtectedRoute>
+            <RoomsPage />
           </ProtectedRoute>
         }
       />
