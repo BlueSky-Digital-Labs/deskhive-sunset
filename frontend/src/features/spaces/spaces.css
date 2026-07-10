@@ -1,0 +1,99 @@
+.spaces-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hd-space-6);
+}
+
+.spaces-page__header h1 {
+  margin: 0 0 var(--hd-space-2) 0;
+  font-size: var(--hd-font-size-3xl);
+  color: var(--hd-text-primary);
+}
+
+.spaces-page__header p {
+  margin: 0;
+  color: var(--hd-text-secondary);
+}
+
+.spaces-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hd-space-4);
+  align-items: flex-end;
+}
+
+.spaces-controls .input-group {
+  min-width: 12rem;
+}
+
+.spaces-error {
+  padding: var(--hd-space-3) var(--hd-space-4);
+  border-radius: var(--hd-radius-lg);
+  background-color: rgba(244, 67, 54, 0.08);
+  color: var(--hd-error-dark);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+}
+
+.spaces-empty {
+  padding: var(--hd-space-8);
+  text-align: center;
+  color: var(--hd-text-secondary);
+  background: var(--hd-bg-secondary);
+  border-radius: var(--hd-radius-xl);
+  border: 1px dashed var(--hd-border-light);
+}
+
+.spaces-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hd-space-3);
+}
+
+.spaces-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--hd-space-4);
+  padding: var(--hd-space-4);
+  background: white;
+  border: 1px solid var(--hd-border-light);
+  border-radius: var(--hd-radius-xl);
+  box-shadow: var(--hd-shadow-sm);
+}
+
+.spaces-card__title {
+  margin: 0 0 var(--hd-space-1) 0;
+  font-size: var(--hd-font-size-lg);
+  color: var(--hd-text-primary);
+}
+
+.spaces-card__meta {
+  margin: 0;
+  color: var(--hd-text-secondary);
+  font-size: var(--hd-font-size-sm);
+}
+
+.spaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--hd-space-4);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--hd-radius-full);
+  font-size: var(--hd-font-size-sm);
+  font-weight: 600;
+}
+
+.status-badge--active {
+  background-color: rgba(76, 175, 80, 0.12);
+  color: var(--hd-success-dark);
+}
+
+.status-badge--inactive {
+  background-color: rgba(158, 158, 158, 0.15);
+  color: var(--hd-text-secondary);
+}

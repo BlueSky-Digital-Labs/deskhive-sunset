@@ -1,0 +1,19 @@
+.availability-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--hd-radius-full);
+  font-size: var(--hd-font-size-sm);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.availability-badge--available {
+  background-color: rgba(76, 175, 80, 0.12);
+  color: var(--hd-success-dark);
+}
+
+.availability-badge--occupied {
+  background-color: rgba(244, 67, 54, 0.12);
+  color: var(--hd-error-dark);
+}
