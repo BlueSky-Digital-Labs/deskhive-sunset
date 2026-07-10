@@ -1,87 +1,74 @@
-# Task Context: DeskHive Sunset — Auth Stack
+# Task Context: DeskHive Sunset — Spaces Backend API
 
 ## Ticket Scope
 
-### Backend (completed)
-JWT authentication API under `/api/v1/auth/` for register, login, refresh, and current user.
+Implement the `spaces` Django app with Floor, Desk, and Room models, CRUD REST endpoints, and stubbed availability endpoints secured by JWT authentication.
 
-### Frontend (this change)
-React 19 + TypeScript + Vite + Redux Toolkit auth flow:
-- Auth slice with `accessToken`, `refreshToken`, `user`, `status`, `error`
-- Fetch-based API client with single 401 refresh retry
-- Login/Signup pages, protected routing, bootstrap refresh on app load
-- Vitest + React Testing Library component tests
+### In scope (this change)
+- New `spaces` app at `backend/src/spaces/`
+- Models: `Floor`, `Desk`, `Room` with constraints and indexes
+- DRF ModelViewSets for CRUD at `/api/v1/floors/`, `/api/v1/desks/`, `/api/v1/rooms/`
+- Availability stubs at `/api/v1/availability/desks/` and `/api/v1/availability/rooms/`
+- Pytest coverage for CRUD and availability (valid/invalid/unauthenticated cases)
+
+### Out of scope
+- Real booking/reservation logic (availability returns `available=true` for all active resources)
+- Frontend changes
+- Docker configuration changes
 
 ## Key Implementation Decisions
 
-### Backend
-1. **`accounts` app** at `backend/src/accounts/` — register, login (SimpleJWT), refresh, me endpoints.
-2. **Custom user model** — `authentication.User` is email-only; serializers use `get_user_model()`.
-3. **Legacy routes preserved** — `/api/auth/` unchanged; v1 at `/api/v1/auth/`.
-4. **Test settings** — `core.settings.test` uses SQLite for pytest without PostgreSQL.
-
-### Frontend
-1. **`store/authSlice.ts`** — Replaces `store/slices/authSlice.ts`. State shape uses `accessToken`/`refreshToken`/`status` per spec. Thunks: `login`, `signup`, `refresh`, `fetchProfile`, `logout`.
-2. **`lib/api.ts`** — Native `fetch` wrapper reads tokens from Redux (dynamic store import avoids circular deps). On 401, attempts one refresh; dispatches `logout` if refresh fails.
-3. **API base path** — Frontend now calls `/api/v1/auth/*` to match the new backend module.
-4. **Signup flow** — Register endpoint returns profile only (no tokens); signup thunk chains into `login` to obtain JWT pair.
-5. **Pages** — `pages/Login.tsx` and `pages/Signup.tsx` with accessible forms and client-side validation. `/register` redirects to `/signup`.
-6. **`ProtectedRoute`** — Reads auth state from Redux; requires both `accessToken` and `user`.
-7. **App bootstrap** — `useEffect` dispatches `refresh()` when a stored refresh token exists on load.
-8. **Tests** — Vitest + RTL; 6 tests for Login, Signup, ProtectedRoute.
+1. **App registration** — `spaces` added to `LOCAL_APPS` in `core.settings.base` (project uses split settings package, not a single `settings.py`).
+2. **Floor uniqueness** — `UniqueConstraint` on `(building, level, name)`; `level` is `CharField` to support labels like `"3"` or `"Ground"`.
+3. **Desk/Room indexes** — `Index(fields=['floor', 'is_active'])` on both models for availability query performance.
+4. **Availability service** — `spaces/services/availability.py` filters active desks/rooms and returns placeholder `available: true` until booking dependencies exist.
+5. **Serializer validation** — `UniqueTogetherValidator` on Floor, Desk, and Room serializers so duplicate creates return HTTP 400 instead of DB integrity errors.
+6. **Authentication** — All spaces endpoints use `IsAuthenticated`; JWT via existing SimpleJWT setup.
+7. **URL layout** — Single `path('api/v1/', include('spaces.urls'))` mounts router + availability views under `/api/v1/`.
 
 ## Files Changed
 
-### Backend
 | File | Why |
 |------|-----|
-| `backend/src/accounts/` | JWT auth endpoints and tests |
-| `backend/src/core/settings/base.py` | Register apps, JWT defaults, token blacklist |
-| `backend/src/core/settings/test.py` | SQLite test DB |
-| `backend/src/core/urls.py` | Mount `api/v1/auth/` |
-| `backend/pytest.ini` | Pytest configuration |
+| `backend/src/spaces/` | New app: models, serializers, views, availability service, URLs, migrations, tests |
+| `backend/src/core/settings/base.py` | Register `spaces` in `INSTALLED_APPS` |
+| `backend/src/core/urls.py` | Mount spaces routes under `/api/v1/` |
 
-### Frontend
-| File | Why |
-|------|-----|
-| `frontend/src/store/authSlice.ts` | Redux auth state and thunks |
-| `frontend/src/lib/api.ts` | Fetch wrapper with 401 refresh retry |
-| `frontend/src/pages/Login.tsx` | Login form and thunk dispatch |
-| `frontend/src/pages/Signup.tsx` | Signup form and thunk dispatch |
-| `frontend/src/pages/auth.css` | Shared auth page styles |
-| `frontend/src/components/ProtectedRoute.tsx` | Auth-gated route wrapper |
-| `frontend/src/App.tsx` | Routes, bootstrap refresh |
-| `frontend/src/hooks/useAuth.ts` | Updated for new auth state |
-| `frontend/src/types/auth.ts` | Updated auth types |
-| `frontend/src/services/authService.ts` | Updated to v1 API (legacy helper) |
-| `frontend/vitest.config.ts` | Test runner config |
-| `frontend/src/test/` | Test setup and store helper |
-| `frontend/src/**/*.test.tsx` | Component tests |
-| `frontend/package.json` | Vitest and testing-library deps |
-
-## Endpoints (Backend)
+## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/v1/auth/register/` | Register user (201 + profile) |
-| POST | `/api/v1/auth/login/` | Obtain access + refresh tokens |
-| POST | `/api/v1/auth/refresh/` | Refresh access token |
-| GET | `/api/v1/auth/me/` | Current user (JWT required) |
+| GET/POST | `/api/v1/floors/` | List/create floors |
+| GET/PATCH/PUT/DELETE | `/api/v1/floors/{id}/` | Retrieve/update/delete floor |
+| GET/POST | `/api/v1/desks/` | List/create desks |
+| GET/PATCH/PUT/DELETE | `/api/v1/desks/{id}/` | Retrieve/update/delete desk |
+| GET/POST | `/api/v1/rooms/` | List/create rooms |
+| GET/PATCH/PUT/DELETE | `/api/v1/rooms/{id}/` | Retrieve/update/delete room |
+| GET | `/api/v1/availability/desks/?date=YYYY-MM-DD` | Desk availability (stub) |
+| GET | `/api/v1/availability/rooms/?start=ISO&end=ISO` | Room availability (stub) |
+
+All endpoints require `Authorization: Bearer <access_token>`.
+
+## Assumptions and Edge Cases
+
+- Availability excludes inactive desks/rooms but does not check bookings yet.
+- Room availability requires `start < end`; equal timestamps return HTTP 400.
+- ISO datetimes accept `Z` suffix (normalized to `+00:00` before parsing).
+- Paginated list responses use DRF default page size (20).
+- Deleting a floor cascades to its desks and rooms.
 
 ## Open Questions / Follow-ups
 
-- `first_name` / `last_name` not on custom User model; add if profile names are needed.
-- Legacy `services/api.ts` (axios) remains but is unused by the new auth flow.
-- Docker `make test` in backend still uses `manage.py test`; pytest is the runner for accounts tests.
+- Integrate booking/reservation models to compute real availability.
+- Add filtering (by floor, building) on list endpoints if needed by frontend.
+- Register spaces models in Django admin if operational tooling is required.
 
 ## Verification
 
 ```bash
-# Backend
-cd backend && PYTHONPATH=src python3 -m pytest src/accounts/tests/test_auth.py -v
-
-# Frontend
-cd frontend && npm run test && npm run lint && npm run build
+cd backend
+PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
+PYTHONPATH=src python3 -m pytest src/spaces/tests/test_spaces_api.py src/accounts/tests/test_auth.py -v
 ```
 
-All backend accounts tests (10) and frontend component tests (6) pass. ESLint and `tsc -b` are clean.
+All 34 backend tests pass (24 spaces + 10 accounts). No backend linter configuration found in repo.
