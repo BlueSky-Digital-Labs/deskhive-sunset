@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Booking
@@ -55,6 +56,8 @@ class BookingSerializer(serializers.ModelSerializer):
     desk_id = serializers.SerializerMethodField()
     room_id = serializers.SerializerMethodField()
     booking_date = serializers.DateField(source='date', read_only=True)
+    resource_label = serializers.SerializerMethodField()
+    is_upcoming = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -63,6 +66,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'user_id',
             'resource_type',
             'resource_id',
+            'resource_label',
             'desk_id',
             'room_id',
             'booking_date',
@@ -70,8 +74,8 @@ class BookingSerializer(serializers.ModelSerializer):
             'start_at',
             'end_at',
             'status',
+            'is_upcoming',
             'created_at',
-            'checked_in_at',
         ]
         read_only_fields = fields
 
@@ -84,3 +88,15 @@ class BookingSerializer(serializers.ModelSerializer):
         if obj.resource_type == Booking.RESOURCE_TYPE_ROOM:
             return obj.resource_id
         return None
+
+    def get_resource_label(self, obj):
+        return None
+
+    def get_is_upcoming(self, obj):
+        now = timezone.now()
+        today = timezone.localdate()
+        if obj.resource_type == Booking.RESOURCE_TYPE_DESK:
+            return obj.date > today
+        if obj.start_at is not None:
+            return obj.start_at > now
+        return False

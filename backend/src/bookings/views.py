@@ -1,4 +1,6 @@
+from django.utils import timezone
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -97,5 +99,51 @@ class BookingViewSet(ModelViewSet):
         if booking.status == Booking.STATUS_CANCELLED:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+        error_message = self._get_cancellation_error(booking)
+        if error_message is not None:
+            return Response({'detail': error_message}, status=status.HTTP_400_BAD_REQUEST)
+
         cancel_booking(user=request.user, booking=booking)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        """
+        Cancel an upcoming booking owned by the authenticated user.
+
+        Cancellation is allowed only when the booking status is active or
+        checked-in and the booking time has not passed: desk bookings must be
+        for today or a future date; room bookings must not have started yet.
+        Already-cancelled bookings return 204 without changes.
+        """
+        booking = self.get_object()
+        if booking.status == Booking.STATUS_CANCELLED:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        error_message = self._get_cancellation_error(booking)
+        if error_message is not None:
+            return Response({'detail': error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+        cancel_booking(user=request.user, booking=booking)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _get_cancellation_error(self, booking):
+        if booking.status not in Booking.ACTIVE_STATUSES:
+            return (
+                'Only active or checked-in bookings can be cancelled. '
+                'This booking is no longer eligible for cancellation.'
+            )
+
+        now = timezone.now()
+        today = timezone.localdate()
+
+        if booking.resource_type == Booking.RESOURCE_TYPE_DESK:
+            if booking.date < today:
+                return 'Past desk bookings cannot be cancelled.'
+        elif booking.resource_type == Booking.RESOURCE_TYPE_ROOM:
+            if booking.start_at is None or booking.start_at <= now:
+                return (
+                    'Bookings that have already started cannot be cancelled.'
+                )
+
+        return None
