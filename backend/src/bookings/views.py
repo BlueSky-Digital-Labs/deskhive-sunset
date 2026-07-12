@@ -1,4 +1,5 @@
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -8,7 +9,13 @@ from spaces.models import Desk, Room
 from .exceptions import DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
 from .models import Booking
 from .serializers import BookingSerializer, CreateBookingSerializer
-from .services import cancel_booking, create_desk_booking, create_room_booking
+from .services import (
+    CANCELLABLE_STATUSES,
+    cancel_booking,
+    create_desk_booking,
+    create_room_booking,
+    is_booking_upcoming,
+)
 
 
 class BookingViewSet(ModelViewSet):
@@ -99,3 +106,57 @@ class BookingViewSet(ModelViewSet):
 
         cancel_booking(user=request.user, booking=booking)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """
+        Cancel an upcoming booking owned by the authenticated user.
+
+        Business rules:
+        - Only bookings in a cancellable state (active / pending / confirmed) may
+          be cancelled. Checked-in, cancelled, or otherwise terminal bookings are
+          rejected with HTTP 400.
+        - The booking must still be upcoming: desk bookings on or after today, or
+          room bookings whose end time is still in the future.
+        - Past or non-cancellable bookings return HTTP 400 with a friendly message.
+        - Bookings owned by another user return HTTP 403.
+        """
+        try:
+            booking = Booking.objects.select_related('user').get(pk=pk)
+        except Booking.DoesNotExist:
+            return Response(
+                {'detail': 'Booking not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if booking.user_id != request.user.id:
+            return Response(
+                {'detail': 'You do not have permission to cancel this booking.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if booking.status not in CANCELLABLE_STATUSES:
+            return Response(
+                {
+                    'detail': (
+                        'Only pending or confirmed upcoming bookings can be '
+                        'cancelled.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not is_booking_upcoming(booking):
+            return Response(
+                {
+                    'detail': (
+                        'Only pending or confirmed upcoming bookings can be '
+                        'cancelled.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cancelled = cancel_booking(user=request.user, booking=booking)
+        serializer = BookingSerializer(cancelled)
+        return Response(serializer.data, status=status.HTTP_200_OK)
