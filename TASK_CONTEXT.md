@@ -1,64 +1,100 @@
-# Task Context: My Bookings API (Backend)
+# Task Context: My Bookings (Backend + Frontend)
 
 ## Ticket Scope
 
-Implement user-specific bookings listing at `/api/v1/my/bookings` and tighten cancellation rules for upcoming bookings.
+Full-stack My Bookings: backend list/cancel APIs and a React screen for upcoming/past bookings with optimistic cancel and pagination.
 
-### In scope (this change)
-- Extend `BookingSerializer` with `resource_label` (placeholder) and `is_upcoming`
-- `MyBookingsListView` with `bucket` (`upcoming`|`past`), optional `resource_type`, pagination (20), and sort annotation
-- `POST /api/v1/bookings/{id}/cancel/` action with upcoming + status validation
-- Composite index on `(user, status, date)` for list-query performance
-- Unit tests in `test_my_bookings.py`
+### Backend (completed)
+- `GET /api/v1/my/bookings` with `bucket`, `resource_type`, pagination (20)
+- `POST /api/v1/bookings/{id}/cancel/` for upcoming active bookings
+- Extended `BookingSerializer` (`resource_label`, `is_upcoming`)
+- 43 backend bookings tests passing
+
+### Frontend (this change)
+- `myBookingsSlice` with paginated fetch + optimistic cancel/rollback
+- `MyBookingsRoute` at `/my/bookings` with Upcoming/Past tabs, URL query sync, pagination, skeleton/empty states
+- API client helpers: `getMyBookings`, `postBookingCancel`
+- Sidebar link and protected route
+- Vitest coverage for slice and route interactions
 
 ### Out of scope
-- Spaces BE integration for `resource_label`
-- Frontend My Bookings page
-- New booking status values (`pending`, `released`, `no_show`) — mapped to existing `active` / `checked_in` / `cancelled`
+- Booking detail modal/drawer (list row shows schedule + status)
+- `resource_label` population (backend placeholder until Spaces BE)
+- Migrating `/rooms` page to the new cancel endpoint
 
 ## Key Implementation Decisions
 
-1. **Status mapping** — API/task vocabulary uses `pending`/`confirmed`/`checked_in`; the model uses `active`/`checked_in`/`cancelled`. Upcoming bucket filters `active` + `checked_in`; cancellable bookings are `active` only.
-2. **Bucket logic** — Upcoming: `(desk & date >= today | room & end_at >= now) & active statuses`. Past: past time windows OR `cancelled` status.
-3. **`is_upcoming` serializer field** — Desks use `date >= today`; rooms use `start_at >= now` (per ticket; bucket filtering uses `end_at` for rooms).
-4. **List payload** — `checked_in_at` omitted from My Bookings responses via serializer context flag.
-5. **Sorting** — `annotate(sort_at=Case(...))` casts desk `date` to datetime; rooms sort on `start_at`.
-6. **Cancel action** — New `POST .../cancel/` returns 200 + booking body; existing `DELETE` cancel remains for backward compatibility. Invalid state → 400; other user → 403.
-7. **Index** — Added `booking_user_status_date_idx` on `(user, status, date)`; exclusion constraint unchanged (still applied via migration 0003 RunPython on PostgreSQL).
+### Backend
+1. Status vocabulary maps `active` → pending/confirmed; cancellable = `active` only
+2. Bucket: upcoming uses desk `date >= today` / room `end_at >= now`; past uses inverse OR `cancelled`
+3. `is_upcoming` in serializer: desk `date >= today`, room `start_at >= now`
+
+### Frontend
+1. **API client** — Task references `fetchJson`; project uses `apiFetch` from `@/lib/api` (same auth/refresh behavior)
+2. **Store** — Reducer registered in `frontend/src/store/index.ts` (no `app/store.ts` in repo)
+3. **Page cache key** — `${bucket}:${page}` in `pages` record for independent pagination state
+4. **Optimistic cancel** — Pending sets `status: cancelled` immediately; rejected restores rollback snapshot; failed cancel shows inline error + “Retry cancel”
+5. **Cancellable UI** — `is_upcoming` plus statuses `pending`/`confirmed`/`active` (maps backend `active`)
+6. **URL state** — `?bucket=upcoming|past&page=N` drives tab + pagination; tab switch resets to page 1
+7. **Navigation** — Protected `/my/bookings` route + sidebar “My Bookings” entry
+
+## Assumptions
+
+- Backend paginated response shape: `{ count, next, previous, results }`
+- Cancel endpoint returns updated booking JSON (200)
+- Display `active` status as “confirmed” in UI
+- Rooms page on `/rooms` keeps existing `DELETE` cancel via `roomBookingsSlice`
 
 ## Files Changed
 
+### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/serializers.py` | `resource_label`, `is_upcoming`, optional `checked_in_at` exclusion |
-| `backend/src/bookings/services.py` | Bucket filters, sort annotation, `is_booking_upcoming`, status constants |
-| `backend/src/bookings/views_my.py` | `MyBookingsListView` |
-| `backend/src/bookings/views.py` | `cancel` action with business-rule docstring |
-| `backend/src/bookings/urls.py` | Route `my/bookings` |
-| `backend/src/bookings/models.py` | User/status/date index |
-| `backend/src/bookings/migrations/0004_add_user_status_date_index.py` | Index migration |
-| `backend/src/bookings/tests/test_my_bookings.py` | List, bucket, pagination, cancel tests |
+| `backend/src/bookings/*` | My Bookings API, cancel action, tests, index |
 
-## API Endpoints
+### Frontend
+| File | Why |
+|------|-----|
+| `frontend/src/features/myBookings/myBookingsSlice.ts` | State, fetch/cancel thunks |
+| `frontend/src/features/myBookings/myBookingsSlice.test.ts` | Thunk unit tests |
+| `frontend/src/features/myBookings/myBookings.css` | Screen styles |
+| `frontend/src/routes/my/MyBookingsRoute.tsx` | Unified bookings UI |
+| `frontend/src/routes/my/MyBookingsRoute.test.tsx` | Route integration tests |
+| `frontend/src/lib/apiClient.ts` | `getMyBookings`, `postBookingCancel`, `MyBooking` type |
+| `frontend/src/store/index.ts` | Register `myBookings` reducer |
+| `frontend/src/test/test-utils.tsx` | Test store includes `myBookings` |
+| `frontend/src/App.tsx` | Protected `/my/bookings` route |
+| `frontend/src/components/organisms/Sidebar/Sidebar.tsx` | Nav link |
+| `frontend/src/features/spaces/RoomsPage.test.tsx` | Stabilize datetime validation test |
+
+## API Endpoints (frontend)
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/api/v1/my/bookings/` | `?bucket=upcoming\|past`, `?resource_type=desk\|room`, paginated (20) |
-| POST | `/api/v1/bookings/{uuid}/cancel/` | Cancel upcoming active booking (200/400/403) |
-| DELETE | `/api/v1/bookings/{uuid}/` | Existing logical cancel (unchanged) |
+| GET | `/api/v1/my/bookings/` | `?bucket=&page=` |
+| POST | `/api/v1/bookings/{uuid}/cancel/` | Optimistic cancel |
+| DELETE | `/api/v1/bookings/{uuid}/` | Still used by `/rooms` page |
 
 ## Open Questions / Follow-ups
 
-- Populate `resource_label` once Spaces API exposes desk/room display names
-- Align room `is_upcoming` with bucket `end_at` semantics if product prefers consistency
-- Frontend consumption of `/api/v1/my/bookings` and `POST .../cancel/`
+- Booking detail view / deep link to desk or room
+- Wire `resource_label` when Spaces API ready
+- Consolidate room page onto `myBookingsSlice` cancel endpoint
+- i18n for sidebar “My Bookings” label via content hook
 
 ## Verification
 
 ```bash
+# Backend
 cd backend
-SECRET_KEY=test-secret-key PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
 SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
+
+# Frontend
+cd frontend
+npm test
+npm run lint
+npm run build
 ```
 
-- Bookings app: 43 tests passing
+- Backend bookings: 43 tests passing
+- Frontend: 34 tests passing

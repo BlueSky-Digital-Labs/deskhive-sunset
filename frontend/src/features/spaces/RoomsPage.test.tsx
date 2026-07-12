@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router-dom'
 import RoomsPage from '@/features/spaces/RoomsPage'
@@ -58,8 +57,6 @@ describe('RoomsPage', () => {
   })
 
   it('shows validation error when start is not before end', async () => {
-    const user = userEvent.setup()
-
     renderRoomsPage()
 
     await waitFor(() => {
@@ -71,10 +68,8 @@ describe('RoomsPage', () => {
     const startInput = screen.getByLabelText(/^start$/i)
     const endInput = screen.getByLabelText(/^end$/i)
 
-    await user.clear(startInput)
-    await user.type(startInput, '2026-07-10T12:00')
-    await user.clear(endInput)
-    await user.type(endInput, '2026-07-10T10:00')
+    fireEvent.change(endInput, { target: { value: '2026-07-10T10:00' } })
+    fireEvent.change(startInput, { target: { value: '2026-07-10T12:00' } })
 
     expect(
       await screen.findByRole('alert'),
