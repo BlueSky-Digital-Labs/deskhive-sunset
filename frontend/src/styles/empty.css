@@ -1,0 +1,20 @@
+.empty-state {
+  padding: var(--hd-space-6);
+  border: 1px dashed var(--hd-gray-200);
+  border-radius: var(--hd-radius-lg);
+  background: var(--hd-gray-50);
+  text-align: center;
+}
+
+.empty-state__title {
+  margin: 0 0 var(--hd-space-2);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--hd-text-primary);
+}
+
+.empty-state__message {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--hd-text-secondary);
+}

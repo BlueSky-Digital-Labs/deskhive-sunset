@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DashboardLayout } from '@components/templates/DashboardLayout'
 import { AvailabilityBadge } from '@components/AvailabilityBadge'
+import { EmptyState } from '@components/EmptyState'
 import { SkeletonList } from '@components/SkeletonList'
 import { Input } from '@components/atoms/Input'
 import { ApiError } from '@/lib/api'
@@ -129,9 +130,7 @@ export function RoomsPage() {
         {loading && isRangeValid && <SkeletonList count={4} />}
 
         {!loading && isRangeValid && !error && rooms.length === 0 && (
-          <div className="spaces-empty" role="status">
-            No rooms available for the selected time range.
-          </div>
+          <EmptyState message="No rooms available for the selected time range." />
         )}
 
         {!loading && isRangeValid && rooms.length > 0 && (
