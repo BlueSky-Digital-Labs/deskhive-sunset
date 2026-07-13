@@ -215,6 +215,11 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
+# Bookings check-in and auto-release configuration
+AUTO_RELEASE_ENABLED = env.bool('AUTO_RELEASE_ENABLED', default=True)
+AUTO_RELEASE_CUTOFF_MINUTES = env.int('AUTO_RELEASE_CUTOFF_MINUTES', default=15)
+CHECK_IN_CUTOFF_LOCALTIME = env('CHECK_IN_CUTOFF_LOCALTIME', default='10:00')
+
 # Celery Beat Schedule
 from celery.schedules import crontab
 
@@ -226,6 +231,10 @@ CELERY_BEAT_SCHEDULE = {
     'generate-user-stats': {
         'task': 'authentication.tasks.generate_user_stats',
         'schedule': crontab(hour=6, minute=0),  # Daily at 6:00 AM
+    },
+    'auto-release-no-shows': {
+        'task': 'bookings.tasks.auto_release_no_shows',
+        'schedule': timedelta(minutes=5),
     },
 }
 

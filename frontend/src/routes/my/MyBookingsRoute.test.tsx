@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 import MyBookingsRoute from '@/routes/my/MyBookingsRoute'
 import { createTestStore } from '@/test/test-utils'
 import * as apiClient from '@/lib/apiClient'
+import { ToastProvider } from '@/lib/toast'
 
 vi.mock('@/lib/apiClient', () => ({
   getMyBookings: vi.fn(),
@@ -13,6 +14,18 @@ vi.mock('@/lib/apiClient', () => ({
   postBooking: vi.fn(),
   postCancel: vi.fn(),
   getBookings: vi.fn(),
+}))
+
+vi.mock('@/api/bookings', () => ({
+  checkIn: vi.fn(),
+  CheckInConflictError: class CheckInConflictError extends Error {
+    status = 409
+
+    constructor(message = 'Check-in is only available on the booking day.') {
+      super(message)
+      this.name = 'CheckInConflictError'
+    }
+  },
 }))
 
 function renderMyBookingsRoute(initialEntry = '/my/bookings?bucket=upcoming&page=1') {
@@ -31,9 +44,11 @@ function renderMyBookingsRoute(initialEntry = '/my/bookings?bucket=upcoming&page
     store,
     ...render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={[initialEntry]}>
-          <MyBookingsRoute />
-        </MemoryRouter>
+        <ToastProvider>
+          <MemoryRouter initialEntries={[initialEntry]}>
+            <MyBookingsRoute />
+          </MemoryRouter>
+        </ToastProvider>
       </Provider>,
     ),
   }

@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { configureStore } from '@reduxjs/toolkit'
 import { ApiError } from '@/lib/api'
+import { CheckInConflictError } from '@/api/bookings'
 import myBookingsReducer, {
   cancelBooking,
+  checkInBooking,
   fetchMyBookings,
   pageKey,
 } from '@/features/myBookings/myBookingsSlice'
@@ -12,7 +14,20 @@ vi.mock('@/lib/apiClient', () => ({
   postBookingCancel: vi.fn(),
 }))
 
+vi.mock('@/api/bookings', () => ({
+  checkIn: vi.fn(),
+  CheckInConflictError: class CheckInConflictError extends Error {
+    status = 409
+
+    constructor(message = 'Check-in is only available on the booking day.') {
+      super(message)
+      this.name = 'CheckInConflictError'
+    }
+  },
+}))
+
 import { getMyBookings, postBookingCancel } from '@/lib/apiClient'
+import { checkIn } from '@/api/bookings'
 
 const sampleBooking = {
   id: 'booking-1',
@@ -133,5 +148,70 @@ describe('myBookingsSlice', () => {
       store.getState().myBookings.pages[pageKey('upcoming', 1)]?.items[0].status,
     ).toBe('active')
     expect(store.getState().myBookings.cancellingById['booking-1']).toBe('failed')
+  })
+
+  it('checkInBooking optimistically checks in then confirms on success', async () => {
+    vi.mocked(checkIn).mockResolvedValue({
+      id: 'booking-1',
+      user_id: 1,
+      resource_type: 'room',
+      resource_id: 5,
+      resource_label: null,
+      room_id: 5,
+      desk_id: null,
+      booking_date: '2026-07-15',
+      date: '2026-07-15',
+      start_at: '2026-07-15T09:00:00.000Z',
+      end_at: '2026-07-15T10:00:00.000Z',
+      status: 'checked_in',
+      is_upcoming: true,
+      created_at: '2026-07-15T08:00:00.000Z',
+      checked_in_at: '2026-07-15T09:05:00.000Z',
+    })
+
+    const store = createMyBookingsStore()
+    store.dispatch({
+      type: 'myBookings/fetchMyBookings/fulfilled',
+      payload: {
+        bucket: 'upcoming',
+        page: 1,
+        items: [sampleBooking],
+        hasNext: false,
+      },
+    })
+
+    const result = await store.dispatch(checkInBooking({ bookingId: 'booking-1' }))
+
+    expect(result.type).toBe('myBookings/checkInBooking/fulfilled')
+    expect(checkIn).toHaveBeenCalledWith('booking-1')
+    expect(
+      store.getState().myBookings.pages[pageKey('upcoming', 1)]?.items[0].status,
+    ).toBe('checked_in')
+    expect(store.getState().myBookings.checkingInById['booking-1']).toBe('succeeded')
+  })
+
+  it('checkInBooking rolls back optimistic update on 409 failure', async () => {
+    vi.mocked(checkIn).mockRejectedValue(
+      new CheckInConflictError('Check-in is only available on the booking day.'),
+    )
+
+    const store = createMyBookingsStore()
+    store.dispatch({
+      type: 'myBookings/fetchMyBookings/fulfilled',
+      payload: {
+        bucket: 'upcoming',
+        page: 1,
+        items: [sampleBooking],
+        hasNext: false,
+      },
+    })
+
+    const result = await store.dispatch(checkInBooking({ bookingId: 'booking-1' }))
+
+    expect(result.type).toBe('myBookings/checkInBooking/rejected')
+    expect(
+      store.getState().myBookings.pages[pageKey('upcoming', 1)]?.items[0].status,
+    ).toBe('active')
+    expect(store.getState().myBookings.checkingInById['booking-1']).toBe('failed')
   })
 })

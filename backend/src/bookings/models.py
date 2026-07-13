@@ -18,10 +18,12 @@ class Booking(models.Model):
     STATUS_ACTIVE = 'active'
     STATUS_CHECKED_IN = 'checked_in'
     STATUS_CANCELLED = 'cancelled'
+    STATUS_RELEASED = 'released'
     STATUS_CHOICES = [
         (STATUS_ACTIVE, 'Active'),
         (STATUS_CHECKED_IN, 'Checked in'),
         (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_RELEASED, 'Released'),
     ]
 
     ACTIVE_STATUSES = (STATUS_ACTIVE, STATUS_CHECKED_IN)

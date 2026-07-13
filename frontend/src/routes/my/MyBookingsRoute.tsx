@@ -1,21 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useSearchParams } from 'react-router-dom'
-import { Armchair, CalendarClock, Monitor } from 'lucide-react'
 import { DashboardLayout } from '@components/templates/DashboardLayout'
 import { SkeletonList } from '@components/SkeletonList'
 import { Button } from '@components/atoms/Button'
 import type { AppDispatch, RootState } from '@store/index'
 import {
-  cancelBooking,
   fetchMyBookings,
-  isCancellableBooking,
-  selectCancellingById,
   pageKey,
   setBucket,
   type BookingBucket,
 } from '@/features/myBookings/myBookingsSlice'
-import type { MyBooking } from '@/lib/apiClient'
+import { BookingList } from '@/features/bookings/components/BookingList'
 import '@/features/myBookings/myBookings.css'
 
 function parseBucket(value: string | null): BookingBucket {
@@ -27,47 +23,15 @@ function parsePage(value: string | null): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
 }
 
-function formatStatusLabel(status: string): string {
-  if (status === 'active') {
-    return 'confirmed'
-  }
-
-  return status.replace(/_/g, ' ')
-}
-
-function formatBookingSchedule(booking: MyBooking): string {
-  if (booking.resource_type === 'room' && booking.start_at && booking.end_at) {
-    const start = new Date(booking.start_at)
-    const end = new Date(booking.end_at)
-    return `${start.toLocaleString()} – ${end.toLocaleTimeString()}`
-  }
-
-  return new Date(booking.date).toLocaleDateString()
-}
-
-function BookingIcon({ resourceType }: { resourceType: string }) {
-  if (resourceType === 'desk') {
-    return <Armchair size={18} aria-hidden="true" />
-  }
-
-  if (resourceType === 'room') {
-    return <Monitor size={18} aria-hidden="true" />
-  }
-
-  return <CalendarClock size={18} aria-hidden="true" />
-}
-
 export function MyBookingsRoute() {
   const dispatch = useDispatch<AppDispatch>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const cancellingById = useSelector(selectCancellingById)
 
   const bucket = parseBucket(searchParams.get('bucket'))
   const page = parsePage(searchParams.get('page'))
   const pageState = useSelector(
     (state: RootState) => state.myBookings.pages[pageKey(bucket, page)],
   )
-  const [cancelErrorsById, setCancelErrorsById] = useState<Record<string, string>>({})
 
   const items = pageState?.items ?? []
   const isLoading = pageState?.loading === 'pending' || pageState === undefined
@@ -89,27 +53,6 @@ export function MyBookingsRoute() {
 
   function handleTabChange(nextBucket: BookingBucket) {
     updateQuery(nextBucket, 1)
-  }
-
-  async function handleCancel(bookingId: string) {
-    if (cancellingById[bookingId] === 'pending') {
-      return
-    }
-
-    setCancelErrorsById((current) => {
-      const next = { ...current }
-      delete next[bookingId]
-      return next
-    })
-
-    const result = await dispatch(cancelBooking({ bookingId }))
-
-    if (cancelBooking.rejected.match(result)) {
-      setCancelErrorsById((current) => ({
-        ...current,
-        [bookingId]: result.payload?.message ?? 'Failed to cancel booking.',
-      }))
-    }
   }
 
   const emptyMessage = useMemo(
@@ -173,56 +116,7 @@ export function MyBookingsRoute() {
         )}
 
         {!isLoading && !loadError && items.length > 0 && (
-          <div className="my-bookings-list" role="list">
-            {items.map((booking) => {
-              const cancelState = cancellingById[booking.id] ?? 'idle'
-              const cancelError = cancelErrorsById[booking.id]
-              const showCancel = isCancellableBooking(booking)
-
-              return (
-                <article key={booking.id} className="my-bookings-item" role="listitem">
-                  <div className="my-bookings-item__main">
-                    <span className="my-bookings-item__icon">
-                      <BookingIcon resourceType={booking.resource_type} />
-                    </span>
-                    <div>
-                      <h2 className="my-bookings-item__title">
-                        {booking.resource_label ??
-                          `${booking.resource_type} #${booking.resource_id}`}
-                      </h2>
-                      <p className="my-bookings-item__meta">
-                        {formatBookingSchedule(booking)}
-                      </p>
-                      {cancelError && (
-                        <p className="my-bookings-item__meta" role="alert">
-                          {cancelError}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="my-bookings-item__actions">
-                    <span
-                      className={`my-bookings-status my-bookings-status--${booking.status}`}
-                    >
-                      {formatStatusLabel(booking.status)}
-                    </span>
-                    {showCancel && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void handleCancel(booking.id)}
-                        disabled={cancelState === 'pending'}
-                        isLoading={cancelState === 'pending'}
-                      >
-                        {cancelState === 'failed' ? 'Retry cancel' : 'Cancel'}
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+          <BookingList bookings={items} />
         )}
 
         {!isLoading && !loadError && items.length > 0 && (
