@@ -1,0 +1,105 @@
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hd-space-6);
+}
+
+.admin-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--hd-space-4);
+}
+
+.admin-page__header h1 {
+  margin: 0 0 var(--hd-space-2) 0;
+  font-size: var(--hd-font-size-3xl);
+  color: var(--hd-text-primary);
+}
+
+.admin-page__header p {
+  margin: 0;
+  color: var(--hd-text-secondary);
+}
+
+.admin-tabs {
+  display: inline-flex;
+  gap: var(--hd-space-2);
+  padding: var(--hd-space-1);
+  background: var(--hd-bg-secondary);
+  border-radius: var(--hd-radius-full);
+  width: fit-content;
+}
+
+.admin-tabs__tab {
+  border: none;
+  background: transparent;
+  color: var(--hd-text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: var(--hd-radius-full);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-tabs__tab--active {
+  background: white;
+  color: var(--hd-text-primary);
+  box-shadow: var(--hd-shadow-sm);
+}
+
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hd-space-4);
+  align-items: flex-end;
+}
+
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--hd-space-4);
+}
+
+.admin-summary-card {
+  background: white;
+  border: 1px solid var(--hd-border-light);
+  border-radius: var(--hd-radius-xl);
+  padding: var(--hd-space-4);
+  box-shadow: var(--hd-shadow-sm);
+}
+
+.admin-summary-card h2 {
+  margin: 0 0 var(--hd-space-3) 0;
+  font-size: var(--hd-font-size-lg);
+}
+
+.admin-summary-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hd-space-3);
+  margin: 0;
+}
+
+.admin-summary-card dt {
+  font-size: var(--hd-font-size-sm);
+  color: var(--hd-text-secondary);
+}
+
+.admin-summary-card dd {
+  margin: 0;
+  font-size: var(--hd-font-size-xl);
+  font-weight: 700;
+  color: var(--hd-text-primary);
+}
+
+.admin-error {
+  padding: var(--hd-space-3) var(--hd-space-4);
+  border-radius: var(--hd-radius-lg);
+  background-color: rgba(244, 67, 54, 0.08);
+  color: var(--hd-error-dark);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+}
+
+.admin-error p {
+  margin: 0;
+}

@@ -1,0 +1,66 @@
+.confirm-dialog__backdrop,
+.space-form-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hd-space-4);
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  width: min(100%, 28rem);
+  background: white;
+  border-radius: var(--hd-radius-xl);
+  box-shadow: var(--hd-shadow-lg);
+  padding: var(--hd-space-5);
+}
+
+.confirm-dialog__title {
+  margin: 0;
+  font-size: var(--hd-font-size-xl);
+}
+
+.confirm-dialog__message {
+  margin: var(--hd-space-3) 0 var(--hd-space-5);
+  color: var(--hd-text-secondary);
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hd-space-3);
+}
+
+.admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--hd-radius-full);
+  font-size: var(--hd-font-size-sm);
+  font-weight: 600;
+}
+
+.admin-status-badge--active {
+  background-color: rgba(76, 175, 80, 0.12);
+  color: var(--hd-success-dark);
+}
+
+.admin-status-badge--inactive {
+  background-color: rgba(158, 158, 158, 0.15);
+  color: var(--hd-text-secondary);
+}
+
+.admin-error {
+  padding: var(--hd-space-3) var(--hd-space-4);
+  border-radius: var(--hd-radius-lg);
+  background-color: rgba(244, 67, 54, 0.08);
+  color: var(--hd-error-dark);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+}
+
+.admin-error p {
+  margin: 0;
+}

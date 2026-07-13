@@ -1,0 +1,30 @@
+.not-found-page {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hd-space-4);
+  padding: var(--hd-space-8);
+}
+
+.not-found-page h1 {
+  margin: 0;
+  font-size: 4rem;
+  color: var(--hd-text-primary);
+}
+
+.not-found-page p {
+  margin: 0;
+  color: var(--hd-text-secondary);
+}
+
+.not-found-page__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--hd-radius-lg);
+  background: var(--hd-primary);
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+}

@@ -2,6 +2,8 @@ export interface User {
   id: number
   email: string
   date_joined: string
+  is_staff?: boolean
+  is_superuser?: boolean
 }
 
 export type AuthStatus = 'idle' | 'loading' | 'succeeded' | 'failed'

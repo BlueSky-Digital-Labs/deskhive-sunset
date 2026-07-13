@@ -1,0 +1,60 @@
+.admin-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--hd-border-light);
+  border-radius: var(--hd-radius-xl);
+  background: white;
+  box-shadow: var(--hd-shadow-sm);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: var(--hd-space-3) var(--hd-space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--hd-border-light);
+}
+
+.admin-table th {
+  font-size: var(--hd-font-size-sm);
+  color: var(--hd-text-secondary);
+  background: var(--hd-bg-secondary);
+}
+
+.admin-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hd-space-2);
+}
+
+.admin-table__loading,
+.admin-table__empty {
+  padding: var(--hd-space-8);
+  text-align: center;
+  color: var(--hd-text-secondary);
+  background: var(--hd-bg-secondary);
+  border-radius: var(--hd-radius-xl);
+  border: 1px dashed var(--hd-border-light);
+}
+
+.admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--hd-radius-full);
+  font-size: var(--hd-font-size-sm);
+  font-weight: 600;
+}
+
+.admin-status-badge--active {
+  background-color: rgba(76, 175, 80, 0.12);
+  color: var(--hd-success-dark);
+}
+
+.admin-status-badge--inactive {
+  background-color: rgba(158, 158, 158, 0.15);
+  color: var(--hd-text-secondary);
+}
