@@ -1,21 +1,45 @@
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from spaces.models import Desk, Room
 
-from .exceptions import DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
+from .exceptions import CheckInNotAllowed, DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
 from .models import Booking
 from .serializers import BookingSerializer, CreateBookingSerializer
 from .services import (
     CANCELLABLE_STATUSES,
     cancel_booking,
+    check_in_booking,
     create_desk_booking,
     create_room_booking,
     is_booking_upcoming,
 )
+
+
+class BookingCheckInView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk)
+        except Booking.DoesNotExist as exc:
+            raise NotFound('Booking not found.') from exc
+
+        if booking.user_id != request.user.id:
+            raise PermissionDenied('You do not have permission to check in to this booking.')
+
+        try:
+            booking = check_in_booking(user=request.user, booking=booking)
+        except CheckInNotAllowed as exc:
+            raise ValidationError(str(exc)) from exc
+
+        serializer = BookingSerializer(booking)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class BookingViewSet(ModelViewSet):

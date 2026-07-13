@@ -1,100 +1,76 @@
-# Task Context: My Bookings (Backend + Frontend)
+# Task Context: Booking Check-In and Auto-Release
 
 ## Ticket Scope
 
-Full-stack My Bookings: backend list/cancel APIs and a React screen for upcoming/past bookings with optimistic cancel and pagination.
+Implement booking check-in workflow and Celery-based auto-release for no-show desk and room bookings.
 
-### Backend (completed)
-- `GET /api/v1/my/bookings` with `bucket`, `resource_type`, pagination (20)
-- `POST /api/v1/bookings/{id}/cancel/` for upcoming active bookings
-- Extended `BookingSerializer` (`resource_label`, `is_upcoming`)
-- 43 backend bookings tests passing
-
-### Frontend (this change)
-- `myBookingsSlice` with paginated fetch + optimistic cancel/rollback
-- `MyBookingsRoute` at `/my/bookings` with Upcoming/Past tabs, URL query sync, pagination, skeleton/empty states
-- API client helpers: `getMyBookings`, `postBookingCancel`
-- Sidebar link and protected route
-- Vitest coverage for slice and route interactions
+### In scope
+- `POST /api/v1/bookings/{uuid}/check_in` — owner check-in with row locking
+- `auto_release_no_shows` Celery task with Beat schedule (every 5 minutes)
+- `GET /api/v1/admin/auto_release_health` — admin health probe for last auto-release run
+- Settings: `AUTO_RELEASE_ENABLED`, `AUTO_RELEASE_CUTOFF_MINUTES`, `CHECK_IN_CUTOFF_LOCALTIME`
+- New booking status: `released` (terminal, frees resource like `cancelled`)
+- Tests for check-in, auto-release concurrency, and health endpoint
 
 ### Out of scope
-- Booking detail modal/drawer (list row shows schedule + status)
-- `resource_label` population (backend placeholder until Spaces BE)
-- Migrating `/rooms` page to the new cancel endpoint
+- Frontend check-in UI
+- `resource_label` population
+- Migrating existing cancel flows to use `released`
 
 ## Key Implementation Decisions
 
-### Backend
-1. Status vocabulary maps `active` → pending/confirmed; cancellable = `active` only
-2. Bucket: upcoming uses desk `date >= today` / room `end_at >= now`; past uses inverse OR `cancelled`
-3. `is_upcoming` in serializer: desk `date >= today`, room `start_at >= now`
-
-### Frontend
-1. **API client** — Task references `fetchJson`; project uses `apiFetch` from `@/lib/api` (same auth/refresh behavior)
-2. **Store** — Reducer registered in `frontend/src/store/index.ts` (no `app/store.ts` in repo)
-3. **Page cache key** — `${bucket}:${page}` in `pages` record for independent pagination state
-4. **Optimistic cancel** — Pending sets `status: cancelled` immediately; rejected restores rollback snapshot; failed cancel shows inline error + “Retry cancel”
-5. **Cancellable UI** — `is_upcoming` plus statuses `pending`/`confirmed`/`active` (maps backend `active`)
-6. **URL state** — `?bucket=upcoming|past&page=N` drives tab + pagination; tab switch resets to page 1
-7. **Navigation** — Protected `/my/bookings` route + sidebar “My Bookings” entry
-
-## Assumptions
-
-- Backend paginated response shape: `{ count, next, previous, results }`
-- Cancel endpoint returns updated booking JSON (200)
-- Display `active` status as “confirmed” in UI
-- Rooms page on `/rooms` keeps existing `DELETE` cancel via `roomBookingsSlice`
+1. **Check-in rules** — Same calendar day only (`booking.date == localdate()`). Desk check-in allowed until `CHECK_IN_CUTOFF_LOCALTIME` (default `10:00`). Room check-in allowed between `start_at` and `end_at` on the booking day. Only `active` bookings are eligible.
+2. **Auto-release** — Active bookings past cutoff are set to `released` (not `cancelled`) so no-show handling is distinct from user cancellation. Desk cutoff = `CHECK_IN_CUTOFF_LOCALTIME + AUTO_RELEASE_CUTOFF_MINUTES`; room cutoff = `start_at + AUTO_RELEASE_CUTOFF_MINUTES`.
+3. **Concurrency** — Check-in and auto-release use `select_for_update()` inside atomic transactions; auto-release uses `skip_locked=True` so parallel workers do not block each other.
+4. **Health probe** — `IsAdminUser` permission; returns `last_auto_release_run_at` from Django cache (`bookings:last_auto_release_run_at`), set after each successful auto-release run.
+5. **DRF exceptions** — Check-in view raises `NotFound`, `PermissionDenied`, and `ValidationError` for appropriate HTTP statuses.
+6. **Past bucket** — `released` bookings included in `PAST_TERMINAL_STATUSES` for My Bookings past bucket.
 
 ## Files Changed
 
-### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/*` | My Bookings API, cancel action, tests, index |
+| `backend/src/bookings/__init__.py` | New app package init |
+| `backend/src/bookings/apps.py` | AppConfig per ticket spec |
+| `backend/src/bookings/models.py` | Added `STATUS_RELEASED` |
+| `backend/src/bookings/exceptions.py` | Added `CheckInNotAllowed` |
+| `backend/src/bookings/services.py` | `check_in_booking`, `auto_release_no_show_bookings`, cutoff helpers |
+| `backend/src/bookings/views.py` | `BookingCheckInView` APIView |
+| `backend/src/bookings/urls.py` | Check-in and health routes |
+| `backend/src/bookings/tasks.py` | `auto_release_no_shows` Celery task |
+| `backend/src/bookings/health.py` | `AutoReleaseHealthView` |
+| `backend/src/bookings/tests/test_check_in.py` | Check-in service and API tests |
+| `backend/src/bookings/tests/test_auto_release.py` | Auto-release, task, health tests |
+| `backend/src/core/settings/base.py` | Auto-release settings and Beat schedule |
 
-### Frontend
-| File | Why |
-|------|-----|
-| `frontend/src/features/myBookings/myBookingsSlice.ts` | State, fetch/cancel thunks |
-| `frontend/src/features/myBookings/myBookingsSlice.test.ts` | Thunk unit tests |
-| `frontend/src/features/myBookings/myBookings.css` | Screen styles |
-| `frontend/src/routes/my/MyBookingsRoute.tsx` | Unified bookings UI |
-| `frontend/src/routes/my/MyBookingsRoute.test.tsx` | Route integration tests |
-| `frontend/src/lib/apiClient.ts` | `getMyBookings`, `postBookingCancel`, `MyBooking` type |
-| `frontend/src/store/index.ts` | Register `myBookings` reducer |
-| `frontend/src/test/test-utils.tsx` | Test store includes `myBookings` |
-| `frontend/src/App.tsx` | Protected `/my/bookings` route |
-| `frontend/src/components/organisms/Sidebar/Sidebar.tsx` | Nav link |
-| `frontend/src/features/spaces/RoomsPage.test.tsx` | Stabilize datetime validation test |
+## API Endpoints
 
-## API Endpoints (frontend)
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| POST | `/api/v1/bookings/{uuid}/check_in` | Authenticated owner | Returns booking JSON (200) |
+| GET | `/api/v1/admin/auto_release_health` | Admin | Returns `last_auto_release_run_at` |
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/v1/my/bookings/` | `?bucket=&page=` |
-| POST | `/api/v1/bookings/{uuid}/cancel/` | Optimistic cancel |
-| DELETE | `/api/v1/bookings/{uuid}/` | Still used by `/rooms` page |
+## Settings
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `AUTO_RELEASE_ENABLED` | `True` | Toggle auto-release task |
+| `AUTO_RELEASE_CUTOFF_MINUTES` | `15` | Grace after desk deadline / room start |
+| `CHECK_IN_CUTOFF_LOCALTIME` | `10:00` | Latest desk check-in time (local) |
 
 ## Open Questions / Follow-ups
 
-- Booking detail view / deep link to desk or room
-- Wire `resource_label` when Spaces API ready
-- Consolidate room page onto `myBookingsSlice` cancel endpoint
-- i18n for sidebar “My Bookings” label via content hook
+- Should `released` bookings appear with a distinct label in My Bookings UI?
+- Timezone alignment for `CHECK_IN_CUTOFF_LOCALTIME` if org operates outside UTC
+- Prometheus/metrics integration for auto-release counts
 
 ## Verification
 
 ```bash
-# Backend
 cd backend
+pip install -r requirements.txt
 SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
-
-# Frontend
-cd frontend
-npm test
-npm run lint
-npm run build
+SECRET_KEY=test-secret-key DJANGO_SETTINGS_MODULE=core.settings.test PYTHONPATH=src python3 manage.py test bookings
 ```
 
-- Backend bookings: 43 tests passing
-- Frontend: 34 tests passing
+- Bookings tests: 66 passing (23 new for check-in / auto-release)

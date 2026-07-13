@@ -1,5 +1,6 @@
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Case, DateTimeField, F, Q, Value, When
 from django.db.models.functions import Cast
@@ -8,13 +9,41 @@ from django.utils import timezone
 
 from spaces.models import Desk, Room
 
-from .exceptions import DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
+from .exceptions import (
+    CheckInNotAllowed,
+    DeskAlreadyBooked,
+    OnePerDayViolation,
+    RoomAlreadyBooked,
+)
 from .models import Booking
 
 # Task/API status vocabulary maps to model values: pending/confirmed -> active.
 UPCOMING_STATUSES = (Booking.STATUS_ACTIVE, Booking.STATUS_CHECKED_IN)
 CANCELLABLE_STATUSES = (Booking.STATUS_ACTIVE,)
-PAST_TERMINAL_STATUSES = (Booking.STATUS_CANCELLED,)
+PAST_TERMINAL_STATUSES = (Booking.STATUS_CANCELLED, Booking.STATUS_RELEASED)
+
+LAST_AUTO_RELEASE_CACHE_KEY = 'bookings:last_auto_release_run_at'
+
+
+def _parse_check_in_cutoff_localtime() -> time:
+    hour, minute = map(int, settings.CHECK_IN_CUTOFF_LOCALTIME.split(':'))
+    return time(hour=hour, minute=minute)
+
+
+def desk_check_in_cutoff_at(booking: Booking) -> datetime:
+    tz = timezone.get_current_timezone()
+    cutoff_time = _parse_check_in_cutoff_localtime()
+    return timezone.make_aware(datetime.combine(booking.date, cutoff_time), tz)
+
+
+def desk_auto_release_cutoff_at(booking: Booking) -> datetime:
+    grace = timedelta(minutes=settings.AUTO_RELEASE_CUTOFF_MINUTES)
+    return desk_check_in_cutoff_at(booking) + grace
+
+
+def room_auto_release_cutoff_at(booking: Booking) -> datetime:
+    grace = timedelta(minutes=settings.AUTO_RELEASE_CUTOFF_MINUTES)
+    return booking.start_at + grace
 
 
 def is_booking_upcoming(booking: Booking) -> bool:
@@ -198,3 +227,94 @@ def cancel_booking(user, booking: Booking) -> Booking:
             locked_booking.status = Booking.STATUS_CANCELLED
             locked_booking.save(update_fields=['status'])
         return locked_booking
+
+
+def check_in_booking(user, booking: Booking) -> Booking:
+    """
+    Mark an active booking as checked in for the owning user.
+
+    Raises CheckInNotAllowed when the booking is not eligible for check-in.
+    """
+    with transaction.atomic():
+        locked_booking = (
+            Booking.objects.select_for_update()
+            .filter(pk=booking.pk, user=user)
+            .get()
+        )
+
+        if locked_booking.status == Booking.STATUS_CANCELLED:
+            raise CheckInNotAllowed('Cannot check in to a cancelled booking.')
+        if locked_booking.status == Booking.STATUS_RELEASED:
+            raise CheckInNotAllowed('Cannot check in to a released booking.')
+        if locked_booking.status == Booking.STATUS_CHECKED_IN:
+            raise CheckInNotAllowed('Booking is already checked in.')
+        if locked_booking.status != Booking.STATUS_ACTIVE:
+            raise CheckInNotAllowed('Booking is not eligible for check-in.')
+
+        today = timezone.localdate()
+        if locked_booking.date != today:
+            raise CheckInNotAllowed('Check-in is only allowed on the booking day.')
+
+        now = timezone.now()
+        if locked_booking.resource_type == Booking.RESOURCE_TYPE_DESK:
+            if now > desk_check_in_cutoff_at(locked_booking):
+                raise CheckInNotAllowed('Check-in window has closed for today.')
+        elif locked_booking.resource_type == Booking.RESOURCE_TYPE_ROOM:
+            if locked_booking.start_at is None or locked_booking.end_at is None:
+                raise CheckInNotAllowed('Booking is not eligible for check-in.')
+            if now < locked_booking.start_at:
+                raise CheckInNotAllowed('Check-in window has not opened yet.')
+            if now > locked_booking.end_at:
+                raise CheckInNotAllowed('Check-in window has closed.')
+
+        locked_booking.status = Booking.STATUS_CHECKED_IN
+        locked_booking.checked_in_at = now
+        locked_booking.save(update_fields=['status', 'checked_in_at'])
+        return locked_booking
+
+
+def _is_eligible_for_auto_release(booking: Booking, now: datetime) -> bool:
+    if booking.status != Booking.STATUS_ACTIVE:
+        return False
+
+    if booking.resource_type == Booking.RESOURCE_TYPE_DESK:
+        if booking.date > now.date():
+            return False
+        return now >= desk_auto_release_cutoff_at(booking)
+
+    if booking.resource_type == Booking.RESOURCE_TYPE_ROOM:
+        if booking.start_at is None:
+            return False
+        return now >= room_auto_release_cutoff_at(booking)
+
+    return False
+
+
+def auto_release_no_show_bookings() -> dict:
+    """
+    Release active bookings that were not checked in before their cutoff.
+
+    Uses row-level locks with skip_locked to avoid blocking concurrent workers.
+    """
+    from django.core.cache import cache
+
+    if not settings.AUTO_RELEASE_ENABLED:
+        return {'released': 0, 'enabled': False}
+
+    now = timezone.now()
+    released = 0
+
+    with transaction.atomic():
+        candidates = (
+            Booking.objects.filter(status=Booking.STATUS_ACTIVE)
+            .select_for_update(skip_locked=True)
+            .order_by('created_at')
+        )
+        for booking in candidates:
+            if _is_eligible_for_auto_release(booking, now):
+                booking.status = Booking.STATUS_RELEASED
+                booking.save(update_fields=['status'])
+                released += 1
+
+    cache.set(LAST_AUTO_RELEASE_CACHE_KEY, now.isoformat(), timeout=None)
+    return {'released': released, 'enabled': True, 'run_at': now.isoformat()}
