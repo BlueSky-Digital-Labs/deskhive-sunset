@@ -1,15 +1,7 @@
-import { logout, selectAccessToken } from '@/features/auth/authSlice'
-import { HttpError, readJsonResponse } from '@/lib/http'
-import { apiFetch } from '@/lib/api'
+import { logout } from '@/features/auth/authSlice'
+import { http, HttpError } from '@/lib/api/http'
 
-export { HttpError as ApiError } from '@/lib/http'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
-
-async function getStore() {
-  const module = await import('@/app/store')
-  return module.store
-}
+export { HttpError as ApiError } from '@/lib/api/http'
 
 export interface FetchJsonOptions {
   method: string
@@ -18,40 +10,30 @@ export interface FetchJsonOptions {
   auth?: boolean
 }
 
+async function getStore() {
+  const module = await import('@/app/store')
+  return module.store
+}
+
 export async function fetchJson<T>({
   method,
   path,
   body,
   auth = false,
 }: FetchJsonOptions): Promise<T> {
-  const store = await getStore()
-  const headers = new Headers({
-    'Content-Type': 'application/json',
-  })
-
-  if (auth) {
-    const accessToken = selectAccessToken(store.getState())
-    if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`)
+  try {
+    return await http<T>(path, {
+      method,
+      body,
+      auth,
+    })
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401 && auth) {
+      const store = await getStore()
+      store.dispatch(logout())
     }
+    throw error
   }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-
-  if (response.status === 401 && auth) {
-    store.dispatch(logout())
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.assign('/login')
-    }
-    const data = await response.text()
-    throw new HttpError(401, 'Authentication required', data)
-  }
-
-  return readJsonResponse<T>(response)
 }
 
 export interface PostBookingBody {
@@ -120,37 +102,33 @@ function toRoomBookingPayload(body: PostBookingBody) {
 }
 
 export async function postBooking(body: PostBookingBody): Promise<BookingRecord> {
-  return apiFetch<BookingRecord>('/api/v1/bookings/', {
+  return http<BookingRecord>('/api/v1/bookings/', {
     method: 'POST',
     body: toRoomBookingPayload(body),
   })
 }
 
 export async function postDeskBooking(body: DeskBookingBody): Promise<BookingRecord> {
-  return fetchJson<BookingRecord>({
+  return http<BookingRecord>('/api/v1/bookings/', {
     method: 'POST',
-    path: '/api/v1/bookings/',
     body,
-    auth: true,
   })
 }
 
 export async function postCancel(bookingId: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/bookings/${bookingId}/`, {
+  await http<void>(`/api/v1/bookings/${bookingId}/`, {
     method: 'DELETE',
   })
 }
 
 export async function deleteDeskBooking(bookingId: string): Promise<void> {
-  await fetchJson<void>({
+  await http<void>(`/api/v1/bookings/${bookingId}/`, {
     method: 'DELETE',
-    path: `/api/v1/bookings/${bookingId}/`,
-    auth: true,
   })
 }
 
 export async function getBookings(): Promise<BookingRecord[]> {
-  const data = await apiFetch<PaginatedBookings>('/api/v1/bookings/')
+  const data = await http<PaginatedBookings>('/api/v1/bookings/')
   return data.results
 }
 
@@ -163,14 +141,13 @@ export async function getMyBookings(params: {
     page: String(params.page ?? 1),
   })
 
-  return apiFetch<PaginatedMyBookings>(`/api/v1/my/bookings?${search.toString()}`)
+  return http<PaginatedMyBookings>(`/api/v1/my/bookings?${search.toString()}`)
 }
 
 export async function postBookingCancel(bookingId: string): Promise<MyBooking> {
-  const booking = await apiFetch<BookingRecord>(
-    `/api/v1/bookings/${bookingId}/cancel/`,
-    { method: 'POST' },
-  )
+  const booking = await http<BookingRecord>(`/api/v1/bookings/${bookingId}/cancel/`, {
+    method: 'POST',
+  })
 
   return {
     id: booking.id,

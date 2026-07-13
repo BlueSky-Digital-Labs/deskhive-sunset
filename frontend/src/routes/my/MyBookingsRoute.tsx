@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useSearchParams } from 'react-router-dom'
 import { DashboardLayout } from '@components/templates/DashboardLayout'
+import { EmptyState } from '@components/EmptyState'
 import { SkeletonList } from '@components/SkeletonList'
 import { Button } from '@components/atoms/Button'
 import type { AppDispatch, RootState } from '@store/index'
@@ -110,9 +111,7 @@ export function MyBookingsRoute() {
         {isLoading && <SkeletonList count={4} />}
 
         {!isLoading && !loadError && items.length === 0 && (
-          <div className="my-bookings-empty" role="status">
-            {emptyMessage}
-          </div>
+          <EmptyState message={emptyMessage} />
         )}
 
         {!isLoading && !loadError && items.length > 0 && (

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { clearAccessToken, setAccessToken } from '@/lib/auth/tokenStore'
 import { apiFetch, ApiError } from '@/lib/api'
 import {
   AuthState,
@@ -20,6 +21,8 @@ const initialState: AuthState = {
 }
 
 function persistTokens(accessToken: string | null, refreshToken: string | null) {
+  setAccessToken(accessToken)
+
   if (accessToken) {
     localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
   } else {
@@ -190,6 +193,7 @@ const authSlice = createSlice({
       state.user = null
       state.status = 'idle'
       state.error = null
+      clearAccessToken()
       persistTokens(null, null)
     },
   },
