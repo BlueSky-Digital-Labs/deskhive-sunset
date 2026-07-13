@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { store } from '@/app/store'
 import { setAccessToken } from '@/lib/auth/tokenStore'
 import { ToastContainer } from '@/components/ToastContainer'
+import { AppThemeProvider } from '@/theme'
 import App from './App'
 import './index.css'
 import '@/styles/toast.css'
@@ -25,13 +26,15 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-          <ToastContainer />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </Provider>
+    <AppThemeProvider>
+      <Provider store={store}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+            <ToastContainer />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </Provider>
+    </AppThemeProvider>
   </StrictMode>,
 )

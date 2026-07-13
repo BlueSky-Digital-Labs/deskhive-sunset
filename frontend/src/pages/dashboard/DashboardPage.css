@@ -7,84 +7,86 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--hd-space-8);
-  padding-bottom: var(--hd-space-4);
-  border-bottom: 1px solid var(--hd-border-light);
+  padding: var(--hd-space-6) !important;
+  border-radius: var(--hd-radius-xl) !important;
+  background: var(--hd-bg-primary) !important;
 }
 
-.welcome-section h1 {
-  font-size: var(--hd-font-size-4xl);
-  font-weight: 600;
-  color: var(--hd-text-primary);
-  margin: 0 0 var(--hd-space-2) 0;
+.dashboard-header__title {
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--hd-space-2) !important;
 }
 
-.welcome-section p {
-  color: var(--hd-text-secondary);
-  font-size: var(--hd-font-size-base);
-  margin: 0;
-}
-
-.user-avatar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.avatar-circle {
-  width: 48px;
-  height: 48px;
-  background: var(--hd-secondary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--hd-text-inverse);
+.dashboard-header__avatar {
+  width: 52px !important;
+  height: 52px !important;
+  background: linear-gradient(135deg, var(--hd-secondary) 0%, var(--hd-accent) 100%) !important;
+  font-weight: 700 !important;
+  font-size: 1.25rem !important;
+  box-shadow: var(--hd-shadow-glow);
 }
 
 .dashboard-quick-links {
   margin-top: 2rem;
 }
 
-.dashboard-quick-links h2 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--hd-text-primary);
-  margin: 0 0 1rem;
+.dashboard-quick-links__heading {
+  font-weight: 600 !important;
+  margin-bottom: 1rem !important;
 }
 
 .dashboard-quick-links__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+}
+
+.dashboard-quick-link-card {
+  border-radius: var(--hd-radius-xl) !important;
+  transition: box-shadow var(--hd-transition-base), transform var(--hd-transition-base) !important;
+}
+
+.dashboard-quick-link-card:hover {
+  box-shadow: var(--hd-shadow-xl) !important;
+  transform: translateY(-3px);
 }
 
 .dashboard-quick-link {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--hd-border-light);
-  border-radius: 0.75rem;
-  background: white;
+  height: 100%;
   text-decoration: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  color: inherit;
 }
 
-.dashboard-quick-link:hover {
-  border-color: var(--hd-secondary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+.dashboard-quick-link__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem 1.5rem !important;
+}
+
+.dashboard-quick-link__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--hd-radius-lg);
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+  color: var(--hd-secondary);
+  margin-bottom: 0.25rem;
 }
 
 .dashboard-quick-link__label {
   font-weight: 600;
+  font-size: 1rem;
   color: var(--hd-text-primary);
 }
 
 .dashboard-quick-link__description {
   font-size: 0.875rem;
   color: var(--hd-text-secondary);
+  line-height: 1.5;
 }
 
 @media (max-width: 768px) {
@@ -94,34 +96,21 @@
     gap: 1rem;
   }
 
-  .welcome-section h1 {
-    font-size: 1.5rem;
+  .dashboard-header__title {
+    font-size: 1.5rem !important;
   }
 }
 
 @media (prefers-color-scheme: dark) {
-  .welcome-section h1 {
-    color: #f1f5f9;
-  }
-
-  .welcome-section p {
-    color: #94a3b8;
-  }
-
-  .dashboard-quick-links h2 {
-    color: #f1f5f9;
-  }
-
-  .dashboard-quick-link {
-    background: #1e293b;
-    border-color: #334155;
+  .dashboard-header {
+    background: var(--hd-bg-secondary) !important;
   }
 
   .dashboard-quick-link__label {
-    color: #f1f5f9;
+    color: var(--hd-text-primary);
   }
 
   .dashboard-quick-link__description {
-    color: #94a3b8;
+    color: var(--hd-text-secondary);
   }
 }

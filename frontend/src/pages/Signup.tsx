@@ -5,6 +5,7 @@ import { AppDispatch, RootState } from '@store/index'
 import { clearError, selectIsAuthenticated, selectIsAuthLoading, signup } from '@store/authSlice'
 import { Button } from '@components/atoms/Button'
 import { Input } from '@components/atoms/Input'
+import Paper from '@mui/material/Paper'
 import './auth.css'
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -97,7 +98,7 @@ export default function Signup() {
 
   return (
     <div className="auth-page">
-      <div className="auth-container">
+      <Paper className="auth-container" elevation={3}>
         <div className="auth-header">
           <h1>Create account</h1>
           <p>Sign up to start using DeskHive</p>
@@ -178,7 +179,7 @@ export default function Signup() {
         <p className="auth-footer">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
-      </div>
+      </Paper>
     </div>
   )
 }
