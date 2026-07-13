@@ -48,6 +48,7 @@ LOCAL_APPS = [
     'accounts',
     'spaces',
     'bookings',
+    'admin_api',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

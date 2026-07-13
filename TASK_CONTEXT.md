@@ -1,103 +1,67 @@
-# Task Context: Booking Check-In (Backend + Frontend)
+# Task Context: Admin Spaces CRUD and Utilisation Summary
 
 ## Ticket Scope
 
-Full-stack same-day booking check-in: backend API/auto-release (completed) and frontend My Bookings UI (this change).
+Backend-only admin APIs for managing spaces (floors, desks, rooms) and reporting desk/room utilisation from booking data.
 
-### Backend (completed)
-- `POST /api/v1/bookings/{uuid}/check_in` — owner check-in with row locking
-- `auto_release_no_shows` Celery task with Beat schedule (every 5 minutes)
-- `GET /api/v1/admin/auto_release_health` — admin health probe
-- Settings: `AUTO_RELEASE_ENABLED`, `AUTO_RELEASE_CUTOFF_MINUTES`, `CHECK_IN_CUTOFF_LOCALTIME`
-- Booking status `released` for no-shows
-- 66 backend bookings tests passing
-
-### Frontend (this change)
-- `checkIn(bookingId)` API client at `frontend/src/api/bookings.ts`
-- `useCheckIn` hook wrapping Redux `checkInBooking` thunk with toast feedback
-- `BookingList` + `BookingStatusBadge` components with same-day check-in button
-- Optional `BookingDetail` component with shared check-in/status logic
-- Toast notifications for success and 409 conflict
-- 9 new frontend tests (45 total passing)
+### In scope
+- Admin CRUD viewsets for `Floor`, `Desk`, and `Room` under `/api/v1/admin/`
+- `IsAdminUser` permission on all admin spaces endpoints
+- Optional `?is_active=true|false` filtering (inactive records included by default)
+- `GET /api/v1/admin/utilisation` with `start_date`, `end_date`, optional `floor_id`
+- Tests for admin CRUD access control and utilisation aggregation
+- `backend/README.md` documentation for new endpoints
 
 ### Out of scope
-- Check-in on `/rooms` page (My Bookings is the entry point)
-- `resource_label` population
-- Desk cutoff time config on frontend (uses local date + backend enforcement)
+- Frontend admin UI
+- Changes to public `/api/v1/floors|desks|rooms/` endpoints (remain `IsAuthenticated`)
+- django-filter dependency (manual query-param filtering used instead)
 
 ## Key Implementation Decisions
 
-### Backend
-1. Check-in allowed on booking day only; desk cutoff from `CHECK_IN_CUTOFF_LOCALTIME`
-2. Auto-release sets `released` status (distinct from `cancelled`)
-3. `select_for_update(skip_locked=True)` for concurrent auto-release workers
-
-### Frontend
-1. **No React Query / RTK Query** — project uses Redux Toolkit thunks; `useCheckIn` hook dispatches `checkInBooking` and updates `myBookings` page cache optimistically (mirrors cancel flow)
-2. **API layer** — new `frontend/src/api/bookings.ts` with `checkIn()` using existing `apiFetch`; maps 409 to `CheckInConflictError`
-3. **Eligibility** — `isCheckInEligible()` shows button when booking is today, upcoming, status in `pending|confirmed|active`, and (for rooms) within start/end window
-4. **UI** — extracted `BookingList` from `MyBookingsRoute`; status badges via `BookingStatusBadge` with color classes per status including `released`
-5. **Toasts** — lightweight `ToastProvider` in `lib/toast.tsx` (no new dependency); success on check-in, specific message on 409
-6. **Status labels** — `active` displayed as "confirmed"; `checked_in` as "checked in"
-
-## Assumptions
-
-- Backend returns 400 for most validation failures; 409 surfaced with same-day conflict copy per task spec
-- My Bookings list re-renders from Redux `pages` after optimistic check-in update
-- Local timezone used for same-day eligibility (aligned with browser locale)
+1. **Separate admin viewsets** — Existing public `FloorViewSet` / `DeskViewSet` / `RoomViewSet` kept at `/api/v1/` for backward compatibility. New `Admin*` viewsets registered under `/api/v1/admin/` with `IsAdminUser`.
+2. **`admin_api` app** — Utilisation reporting lives in a dedicated app (`admin_api`) to keep bookings health and spaces CRUD concerns separated.
+3. **Utilisation metrics** — Count bookings with status `active`, `checked_in`, or `released`; exclude `cancelled`. Utilisation rate = `bookings_count / (resource_count * days_in_range)` for summary, and `bookings_count / resource_count` per day.
+4. **Resource scope** — Only active desks/rooms count toward capacity. Optional `floor_id` limits both capacity and booking filters to one floor.
+5. **Models** — `is_active` already present on `Floor`, `Desk`, and `Room`; no migration required.
 
 ## Files Changed
 
-### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/*` | Check-in API, auto-release task, health, tests |
-| `backend/src/core/settings/base.py` | Auto-release settings and Beat schedule |
-
-### Frontend
-| File | Why |
-|------|-----|
-| `frontend/src/api/bookings.ts` | `checkIn()` API client |
-| `frontend/src/features/bookings/hooks/useCheckIn.ts` | Check-in hook with toast + Redux dispatch |
-| `frontend/src/features/bookings/utils.ts` | Eligibility helper, status label formatting |
-| `frontend/src/features/bookings/components/BookingList.tsx` | List with check-in/cancel actions |
-| `frontend/src/features/bookings/components/BookingStatusBadge.tsx` | Colored status badges |
-| `frontend/src/features/bookings/components/BookingDetail.tsx` | Optional detail view with check-in |
-| `frontend/src/features/myBookings/myBookingsSlice.ts` | `checkInBooking` thunk + optimistic cache |
-| `frontend/src/routes/my/MyBookingsRoute.tsx` | Uses `BookingList` |
-| `frontend/src/lib/toast.tsx` | Toast provider for success/error feedback |
-| `frontend/src/App.tsx` | Wrap app with `ToastProvider` |
-| `frontend/src/features/myBookings/myBookings.css` | `released` status badge color |
-| `frontend/src/features/bookings/hooks/useCheckIn.test.tsx` | Hook tests |
-| `frontend/src/features/bookings/components/BookingList.test.tsx` | UI tests |
+| `backend/src/spaces/views.py` | Added `AdminFloorViewSet`, `AdminDeskViewSet`, `AdminRoomViewSet` with `IsActiveFilterMixin` |
+| `backend/src/spaces/urls.py` | Registered admin router at `admin/` |
+| `backend/src/admin_api/apps.py` | New app config |
+| `backend/src/admin_api/views.py` | `UtilisationView` API |
+| `backend/src/admin_api/services/utilisation.py` | Booking aggregation logic |
+| `backend/src/admin_api/urls.py` | `admin/utilisation` route |
+| `backend/src/core/settings/base.py` | Registered `admin_api` app |
+| `backend/src/core/urls.py` | Included `admin_api` URLs under `/api/v1/` |
+| `backend/src/spaces/tests/test_admin_crud.py` | Admin CRUD and permission tests |
+| `backend/src/admin_api/tests/test_utilisation.py` | Utilisation summary and daily metrics tests |
+| `backend/README.md` | Admin endpoint and utilisation documentation |
 
 ## API Endpoints
 
 | Method | Path | Notes |
 |--------|------|-------|
-| POST | `/api/v1/bookings/{uuid}/check_in` | Check-in; returns full booking |
-| GET | `/api/v1/my/bookings/` | List (unchanged) |
-| POST | `/api/v1/bookings/{uuid}/cancel/` | Cancel (unchanged) |
+| GET/POST | `/api/v1/admin/floors/` | Admin floor list/create |
+| GET/PATCH/PUT/DELETE | `/api/v1/admin/floors/{id}/` | Admin floor detail |
+| GET/POST | `/api/v1/admin/desks/` | Admin desk list/create |
+| GET/PATCH/PUT/DELETE | `/api/v1/admin/desks/{id}/` | Admin desk detail |
+| GET/POST | `/api/v1/admin/rooms/` | Admin room list/create |
+| GET/PATCH/PUT/DELETE | `/api/v1/admin/rooms/{id}/` | Admin room detail |
+| GET | `/api/v1/admin/utilisation` | Utilisation dashboard (`start_date`, `end_date`, optional `floor_id`) |
 
 ## Open Questions / Follow-ups
 
-- Distinct UI label for `released` no-shows in past tab
-- Share `CHECK_IN_CUTOFF_LOCALTIME` with frontend for desk button visibility
-- Check-in entry point on room booking page
+- Whether room utilisation should use time-weighted occupancy instead of booking counts
+- Moving auto-release health from `bookings` to `admin_api` for consistency
+- OpenAPI tags for admin endpoints in drf-spectacular
 
 ## Verification
 
 ```bash
-# Backend
 cd backend
-SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
-
-# Frontend
-cd frontend
-npm test
-npm run lint
-npm run build
+SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/spaces/tests/ src/admin_api/tests/ -v
 ```
-
-- Backend bookings: 66 tests passing
-- Frontend: 45 tests passing

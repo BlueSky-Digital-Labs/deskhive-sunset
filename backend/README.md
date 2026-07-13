@@ -289,6 +289,36 @@ make test-coverage
 | `/api/auth/me/` | GET | Current user profile | JWT |
 | `/api/auth/users/` | GET | List users | JWT |
 
+### Admin Spaces & Utilisation
+
+Admin endpoints require a Django staff/superuser account (`IsAdminUser`).
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/admin/floors/` | GET, POST | List or create floors (supports `?is_active=true\|false`) |
+| `/api/v1/admin/floors/{id}/` | GET, PUT, PATCH, DELETE | Retrieve, update, or delete a floor |
+| `/api/v1/admin/desks/` | GET, POST | List or create desks (supports `?is_active=true\|false`) |
+| `/api/v1/admin/desks/{id}/` | GET, PUT, PATCH, DELETE | Retrieve, update, or delete a desk |
+| `/api/v1/admin/rooms/` | GET, POST | List or create rooms (supports `?is_active=true\|false`) |
+| `/api/v1/admin/rooms/{id}/` | GET, PUT, PATCH, DELETE | Retrieve, update, or delete a room |
+| `/api/v1/admin/utilisation` | GET | Desk and room utilisation summary for a date range |
+
+**Utilisation query parameters**
+
+- `start_date` (required): `YYYY-MM-DD`, inclusive start of the reporting window
+- `end_date` (required): `YYYY-MM-DD`, inclusive end of the reporting window
+- `floor_id` (optional): limit metrics to desks and rooms on one floor
+
+The response includes period-level `summary` metrics (resource counts, booking counts,
+checked-in counts, utilisation rates) and per-day `daily` breakdowns for desks and rooms.
+Cancelled bookings are excluded; active, checked-in, and released bookings count toward
+utilisation.
+
+```bash
+curl -X GET 'http://localhost:8000/api/v1/admin/utilisation?start_date=2026-07-01&end_date=2026-07-07' \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN"
+```
+
 ## 📖 API Documentation
 
 The API includes comprehensive Swagger/OpenAPI 3.0 documentation powered by `drf-spectacular`.
