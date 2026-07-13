@@ -246,9 +246,8 @@ make dbshell
 
 ### Demo Seed
 
-The `seed_demo` management command populates demo users, floors, desks, rooms, and
-sample bookings for local development and UAT. All seeded space entities use a
-`DEMO-` name prefix so they can be identified and removed.
+The `seed_demo` management command bootstraps the demo admin account used by the
+Sunset deploy contract for smoke tests and local sign-in.
 
 **Environment guard:** seeding is blocked unless `ALLOW_DEMO_SEED=true`. This flag is
 set in `docker-compose.dev.yml` and `docker-compose.uat.yml` for the backend service.
@@ -261,17 +260,11 @@ docker compose -f docker-compose.dev.yml exec backend python manage.py seed_demo
 
 # Local run
 ALLOW_DEMO_SEED=true SECRET_KEY=your-secret python manage.py seed_demo
-
-# Remove existing DEMO- entities and reseed
-ALLOW_DEMO_SEED=true SECRET_KEY=your-secret python manage.py seed_demo --clear
 ```
 
-The command creates:
+The command creates or updates:
 
 - Demo admin user `demo@sunset.dev` (password from `DEMO_ADMIN_PASSWORD`)
-- Five sample users (`alice@example.com`, etc.)
-- Two demo floors with six desks and two meeting rooms
-- Desk and room bookings for today and tomorrow
 
 ### Celery Operations
 

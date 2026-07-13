@@ -4,19 +4,14 @@ import { useSidebarContent } from '@hooks/useContent'
 import { Logo } from '@components/atoms/Logo'
 import {
   LayoutDashboard,
-  Briefcase,
-  Calendar,
   CalendarDays,
-  Users,
-  BarChart3,
-  Settings,
+  Monitor,
+  DoorOpen,
   LogOut,
   Building2,
   LineChart,
 } from 'lucide-react'
 import './Sidebar.css'
-
-// Menu items are now defined inside the component to use content hook
 
 export const Sidebar = () => {
   const location = useLocation()
@@ -28,65 +23,34 @@ export const Sidebar = () => {
       icon: LayoutDashboard,
       label: sidebarContent.menuItems.dashboard,
       path: '/dashboard',
-      active: true
-    },
-    {
-      icon: Briefcase,
-      label: sidebarContent.menuItems.jobs,
-      path: '/jobs'
-    },
-    {
-      icon: Calendar,
-      label: sidebarContent.menuItems.calendar,
-      path: '/calendar'
     },
     {
       icon: CalendarDays,
-      label: 'My Bookings',
-      path: '/my/bookings'
+      label: sidebarContent.menuItems.myBookings,
+      path: '/my/bookings',
     },
     {
-      icon: Briefcase,
-      label: 'Book Desk',
-      path: '/desks'
+      icon: Monitor,
+      label: sidebarContent.menuItems.bookDesk,
+      path: '/desks',
     },
     {
-      icon: Calendar,
-      label: 'Book Room',
-      path: '/rooms'
+      icon: DoorOpen,
+      label: sidebarContent.menuItems.bookRoom,
+      path: '/rooms',
     },
-    {
-      icon: Users,
-      label: sidebarContent.menuItems.clients,
-      path: '/clients'
-    },
-    {
-      icon: Users,
-      label: sidebarContent.menuItems.employees,
-      path: '/employees'
-    },
-    {
-      icon: BarChart3,
-      label: sidebarContent.menuItems.invoicing,
-      path: '/invoicing'
-    },
-    {
-      icon: Settings,
-      label: sidebarContent.menuItems.settings,
-      path: '/settings'
-    }
   ]
 
   const adminMenuItems = isAdmin
     ? [
         {
           icon: Building2,
-          label: 'Admin Spaces',
+          label: sidebarContent.menuItems.adminSpaces,
           path: '/admin/spaces',
         },
         {
           icon: LineChart,
-          label: 'Utilisation',
+          label: sidebarContent.menuItems.utilisation,
           path: '/admin/utilisation',
         },
       ]
@@ -106,7 +70,7 @@ export const Sidebar = () => {
         {menuItems.map((item) => {
           const Icon = item.icon
           const isActive = location.pathname === item.path
-          
+
           return (
             <Link
               key={item.path}
