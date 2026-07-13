@@ -1,10 +1,12 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { ApiError } from '@/lib/api'
+import { checkIn, CheckInConflictError } from '@/api/bookings'
 import {
   getMyBookings,
   postBookingCancel,
   type MyBooking,
 } from '@/lib/apiClient'
+import { toMyBookingFromCheckInResponse } from '@/features/bookings/utils'
 import type { RootState } from '@store/index'
 
 export type BookingBucket = 'upcoming' | 'past'
@@ -23,6 +25,8 @@ export interface MyBookingsState {
   pages: Record<string, MyBookingsPageState>
   cancellingById: Record<string, AsyncStatus>
   cancelRollbackById: Record<string, MyBooking>
+  checkingInById: Record<string, AsyncStatus>
+  checkInRollbackById: Record<string, MyBooking>
 }
 
 const initialState: MyBookingsState = {
@@ -30,6 +34,8 @@ const initialState: MyBookingsState = {
   pages: {},
   cancellingById: {},
   cancelRollbackById: {},
+  checkingInById: {},
+  checkInRollbackById: {},
 }
 
 export function pageKey(bucket: BookingBucket, page: number): string {
@@ -94,6 +100,44 @@ export const cancelBooking = createAsyncThunk<
   },
 )
 
+export const checkInBooking = createAsyncThunk<
+  MyBooking,
+  { bookingId: string },
+  { rejectValue: { bookingId: string; message: string; status?: number } }
+>(
+  'myBookings/checkInBooking',
+  async ({ bookingId }, { rejectWithValue }) => {
+    try {
+      const booking = await checkIn(bookingId)
+      return toMyBookingFromCheckInResponse(booking)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return rejectWithValue({
+          bookingId,
+          message: error.message,
+          status: error.status,
+        })
+      }
+
+      if (error instanceof CheckInConflictError) {
+        return rejectWithValue({
+          bookingId,
+          message: error.message,
+          status: error.status,
+        })
+      }
+
+      const message =
+        error instanceof Error ? error.message : 'Failed to check in.'
+
+      return rejectWithValue({
+        bookingId,
+        message,
+      })
+    }
+  },
+)
+
 function updateBookingInPages(
   pages: Record<string, MyBookingsPageState>,
   bookingId: string,
@@ -124,6 +168,9 @@ const myBookingsSlice = createSlice({
     },
     clearCancelRollback(state, action: { payload: string }) {
       delete state.cancelRollbackById[action.payload]
+    },
+    clearCheckInRollback(state, action: { payload: string }) {
+      delete state.checkInRollbackById[action.payload]
     },
   },
   extraReducers: (builder) => {
@@ -205,16 +252,53 @@ const myBookingsSlice = createSlice({
           delete state.cancelRollbackById[bookingId]
         }
       })
+      .addCase(checkInBooking.pending, (state, action) => {
+        const { bookingId } = action.meta.arg
+        state.checkingInById[bookingId] = 'pending'
+
+        for (const pageState of Object.values(state.pages)) {
+          const booking = pageState.items.find((item) => item.id === bookingId)
+          if (booking) {
+            state.checkInRollbackById[bookingId] = booking
+            break
+          }
+        }
+
+        updateBookingInPages(state.pages, bookingId, (booking) => ({
+          ...booking,
+          status: 'checked_in',
+        }))
+      })
+      .addCase(checkInBooking.fulfilled, (state, action) => {
+        const bookingId = action.payload.id
+        state.checkingInById[bookingId] = 'succeeded'
+        delete state.checkInRollbackById[bookingId]
+
+        updateBookingInPages(state.pages, bookingId, () => action.payload)
+      })
+      .addCase(checkInBooking.rejected, (state, action) => {
+        const bookingId = action.meta.arg.bookingId
+        state.checkingInById[bookingId] = 'failed'
+
+        const rollback = state.checkInRollbackById[bookingId]
+        if (rollback) {
+          updateBookingInPages(state.pages, bookingId, () => rollback)
+          delete state.checkInRollbackById[bookingId]
+        }
+      })
   },
 })
 
-export const { setBucket, clearCancelRollback } = myBookingsSlice.actions
+export const { setBucket, clearCancelRollback, clearCheckInRollback } =
+  myBookingsSlice.actions
 
 export const selectMyBookingsState = (state: RootState) => state.myBookings
 export const selectMyBookingsBucket = (state: RootState) => state.myBookings.bucket
 export const selectMyBookingsPages = (state: RootState) => state.myBookings.pages
 export const selectCancellingById = (state: RootState) =>
   state.myBookings.cancellingById
+export const selectCheckingInById = (state: RootState) =>
+  state.myBookings.checkingInById
 
 export function selectMyBookingsPage(
   state: RootState,

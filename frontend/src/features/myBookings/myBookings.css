@@ -121,6 +121,11 @@
   color: #616161;
 }
 
+.my-bookings-status--released {
+  background: rgba(255, 152, 0, 0.14);
+  color: #ef6c00;
+}
+
 .my-bookings-pagination {
   display: flex;
   align-items: center;

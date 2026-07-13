@@ -12,6 +12,7 @@ import RoomsPage from '@/features/spaces/RoomsPage'
 import RoomsRoute from '@/routes/rooms/RoomsRoute'
 import MyBookingsRoute from '@/routes/my/MyBookingsRoute'
 import ProtectedRoute from '@components/ProtectedRoute'
+import { ToastProvider } from '@/lib/toast'
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -25,7 +26,8 @@ function App() {
   }, [dispatch, refreshToken])
 
   return (
-    <Routes>
+    <ToastProvider>
+      <Routes>
       <Route
         path="/"
         element={
@@ -83,7 +85,8 @@ function App() {
         }
       />
       <Route path="/register" element={<Navigate to="/signup" replace />} />
-    </Routes>
+      </Routes>
+    </ToastProvider>
   )
 }
 

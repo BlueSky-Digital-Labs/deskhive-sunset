@@ -52,6 +52,8 @@ export function createTestStore(
         pages: {},
         cancellingById: {},
         cancelRollbackById: {},
+        checkingInById: {},
+        checkInRollbackById: {},
         ...preloadedState?.myBookings,
       },
     },
