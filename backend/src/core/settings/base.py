@@ -216,6 +216,9 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
+# Demo seeding (dev/UAT only — never enable in production)
+ALLOW_DEMO_SEED = env.bool('ALLOW_DEMO_SEED', default=False)
+
 # Bookings check-in and auto-release configuration
 AUTO_RELEASE_ENABLED = env.bool('AUTO_RELEASE_ENABLED', default=True)
 AUTO_RELEASE_CUTOFF_MINUTES = env.int('AUTO_RELEASE_CUTOFF_MINUTES', default=15)

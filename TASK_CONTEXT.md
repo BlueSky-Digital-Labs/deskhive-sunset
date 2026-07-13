@@ -1,116 +1,66 @@
-# Task Context: Admin Spaces CRUD and Utilisation (Backend + Frontend)
+# Task Context: Demo Seed Management Command (Task 11)
 
 ## Ticket Scope
 
-Admin management of spaces (floors, desks, rooms) and utilisation reporting across backend APIs and frontend admin screens.
+Add a guarded `seed_demo` management command under the `spaces` app that seeds
+demo floors, desks, rooms, and bookings (plus existing demo users), with an
+`ALLOW_DEMO_SEED` environment flag to prevent accidental use in production.
 
-### Backend (completed)
-- Admin CRUD viewsets under `/api/v1/admin/floors|desks|rooms/` with `IsAdminUser`
-- Optional `?is_active=true|false` filtering
-- `GET /api/v1/admin/utilisation` with `start_date`, `end_date`, optional `floor_id`
-- `/api/v1/auth/me/` exposes `is_staff` and `is_superuser` for frontend admin gating
-
-### Frontend (this change)
-- `/admin/spaces` tabbed CRUD UI for floors, desks, and rooms
-- `/admin/utilisation` date-range and floor-filtered utilisation dashboard
-- React Query hooks for admin spaces and utilisation data
-- Admin route gating (`isAdmin` from `/me`, non-admins redirected to `/404`)
-- Sidebar admin links for staff users
+### In scope
+- `ALLOW_DEMO_SEED` setting in `core/settings/base.py`
+- `ALLOW_DEMO_SEED=true` on backend service in `docker-compose.dev.yml` and
+  `docker-compose.uat.yml` only
+- `spaces` management command `seed_demo` with `--clear` option
+- README documentation and pytest coverage
 
 ### Out of scope
-- Time-weighted room occupancy metrics
-- Moving auto-release health endpoint into `admin_api`
+- Frontend changes
+- Production demo seeding (explicitly disabled)
 
 ## Key Implementation Decisions
 
-### Backend
-1. Separate public and admin viewsets — public `/api/v1/floors|desks|rooms/` remain `IsAuthenticated`
-2. Utilisation counts `active`, `checked_in`, `released` bookings; excludes `cancelled`
-3. `MeSerializer` includes `is_staff` / `is_superuser` for frontend role checks
-
-### Frontend
-1. **React Query** — added `@tanstack/react-query` for admin list/mutation hooks (existing features remain Redux)
-2. **Admin gating** — `deriveIsAdmin()` checks `/me` staff flags with JWT payload fallback
-3. **Soft delete preference** — primary deactivation via `is_active` toggle; hard delete requires confirmation dialog
-4. **Error handling** — `403` surfaces "Admins only"; `401` redirects to login via existing `apiFetch` + page handlers
-5. **Reusable table** — `SpacesTable` parameterized by `SpaceKind` for floors/desks/rooms
+1. **Settings location** — `ALLOW_DEMO_SEED` added to `core/settings/base.py`
+   (the project uses a settings package, not a single `settings.py` file).
+2. **Command location** — `seed_demo` lives in `spaces/management/commands/` per
+   ticket; the prior `authentication` copy was removed to avoid duplicate command
+   registration. User seeding logic was merged into the spaces command so deploy
+   `seed.command: python manage.py seed_demo` continues to work when
+   `ALLOW_DEMO_SEED=true`.
+3. **DEMO- prefix** — all seeded floors, desks, and rooms use `DEMO-` names;
+   `--clear` deletes bookings tied to those resources, then removes matching
+   floors (cascading desks/rooms).
+4. **Idempotency** — `get_or_create` for spaces; `IntegrityError` caught on
+   booking creation so constraint conflicts do not abort the run.
+5. **Transactions** — the seed body runs inside `transaction.atomic()`.
+6. **Demo data shape** (no prior spec existed; chosen for utilisation demos):
+   - 2 floors (`DEMO-Floor-1`, `DEMO-Floor-2`) in building `DEMO`
+   - 6 desks on floor 1, 2 rooms on floor 2
+   - 4 desk bookings (today/tomorrow) and 2 non-overlapping room bookings
 
 ## Files Changed
 
-### Backend
 | File | Why |
 |------|-----|
-| `backend/src/spaces/views.py` | Admin viewsets with `IsActiveFilterMixin` |
-| `backend/src/spaces/urls.py` | Admin router registration |
-| `backend/src/admin_api/*` | Utilisation service, view, tests |
-| `backend/src/core/settings/base.py` | Register `admin_api` app |
-| `backend/src/core/urls.py` | Include admin API URLs |
-| `backend/src/accounts/serializers.py` | Expose `is_staff` / `is_superuser` on `/me` |
-| `backend/src/spaces/tests/test_admin_crud.py` | Admin CRUD tests |
-| `backend/README.md` | Admin endpoint documentation |
-
-### Frontend
-| File | Why |
-|------|-----|
-| `frontend/src/api/admin.ts` | Admin spaces CRUD + utilisation API client |
-| `frontend/src/features/admin/types.ts` | Admin domain types |
-| `frontend/src/features/admin/hooks/useSpaces.ts` | React Query hooks for spaces CRUD/toggle |
-| `frontend/src/features/admin/hooks/useUtilisation.ts` | React Query hook for utilisation report |
-| `frontend/src/features/admin/components/*` | `SpacesTable`, `SpaceFormModal`, confirm/status UI |
-| `frontend/src/features/admin/pages/SpacesPage.tsx` | Tabbed admin spaces management |
-| `frontend/src/features/admin/pages/UtilisationPage.tsx` | Utilisation dashboard |
-| `frontend/src/routes/AdminRoutes.tsx` | Nested `/admin` routes |
-| `frontend/src/routes/AdminRoute.tsx` | Admin-only route guard |
-| `frontend/src/pages/NotFoundPage.tsx` | 404 destination for non-admin users |
-| `frontend/src/utils/isAdmin.ts` | Admin role derivation |
-| `frontend/src/hooks/useAuth.ts` | Expose `isAdmin` |
-| `frontend/src/types/auth.ts` | Staff fields on `User` |
-| `frontend/src/App.tsx` | Wire admin and 404 routes |
-| `frontend/src/main.tsx` | `QueryClientProvider` |
-| `frontend/src/components/organisms/Sidebar/Sidebar.tsx` | Admin nav links |
-| `frontend/src/test/test-utils.tsx` | Query client test wrapper |
-| `frontend/package.json` | `@tanstack/react-query` dependency |
-
-## API Endpoints
-
-| Method | Path | Notes |
-|--------|------|-------|
-| GET/POST | `/api/v1/admin/floors/` | Admin floor list/create |
-| GET/PATCH/DELETE | `/api/v1/admin/floors/{id}/` | Admin floor detail |
-| GET/POST | `/api/v1/admin/desks/` | Admin desk list/create |
-| GET/PATCH/DELETE | `/api/v1/admin/desks/{id}/` | Admin desk detail |
-| GET/POST | `/api/v1/admin/rooms/` | Admin room list/create |
-| GET/PATCH/DELETE | `/api/v1/admin/rooms/{id}/` | Admin room detail |
-| GET | `/api/v1/admin/utilisation` | Utilisation dashboard |
-| GET | `/api/v1/auth/me/` | Includes `is_staff`, `is_superuser` |
-
-## Frontend Routes
-
-| Path | Page |
-|------|------|
-| `/admin/spaces` | Spaces CRUD (Floors / Desks / Rooms tabs) |
-| `/admin/utilisation` | Utilisation summary + daily table |
-| `/404` | Not found / access denied fallback |
+| `backend/src/core/settings/base.py` | `ALLOW_DEMO_SEED` env flag |
+| `docker-compose.dev.yml` | Enable demo seed on backend in dev |
+| `docker-compose.uat.yml` | Enable demo seed on backend in UAT |
+| `backend/src/spaces/management/commands/seed_demo.py` | Management command |
+| `backend/src/spaces/management/__init__.py` | Package init |
+| `backend/src/spaces/management/commands/__init__.py` | Package init |
+| `backend/src/spaces/tests/test_seed_demo.py` | Command tests |
+| `backend/README.md` | Demo Seed documentation |
+| `backend/src/authentication/management/commands/seed_demo.py` | **Removed** — merged into spaces command |
 
 ## Open Questions / Follow-ups
 
-- Time-weighted room utilisation instead of booking-count rates
-- OpenAPI tags for admin endpoints in drf-spectacular
-- Dedicated "access denied" page copy vs generic 404
+- Sunset deploy (`.sunset/deploy.yaml`) runs `seed_demo` but does not set
+  `ALLOW_DEMO_SEED`; add `ALLOW_DEMO_SEED=true` to deploy env if automated
+  sunset seeds should keep working without manual env configuration.
+- Consider extracting shared user-seed helpers if more seed commands are added.
 
 ## Verification
 
 ```bash
-# Backend
 cd backend
-SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/accounts/tests/ src/spaces/tests/ src/admin_api/tests/ -v
-
-# Frontend
-cd frontend
-npm test
-npm run lint
-npm run build
+SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/spaces/tests/test_seed_demo.py -v
 ```
-
-- Backend: accounts + spaces + admin_api tests passing
-- Frontend: 51 tests passing; Vite build succeeds
