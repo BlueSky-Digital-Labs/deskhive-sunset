@@ -1,77 +1,81 @@
-# Task Context: Template Cleanup (DeskHive)
+# Task Context: UI Visual Enhancements (DeskHive)
 
 ## Ticket Scope
 
-Remove placeholder and demo scaffolding from the DeskHive monorepo frontend and
-backend while preserving deployment infrastructure, auth flows, routing, API
-client layers, and design-system components.
+Modernize the DeskHive React frontend visual design with improved depth, a
+contemporary color palette, and Material UI integration — while preserving all
+existing routes, navigation, and functionality.
 
 ### In scope
-- Frontend: rebrand from Horizon Digital template to DeskHive
-- Frontend: replace demo dashboard (fake metrics/jobs) with empty state and quick links
-- Frontend: remove dead sidebar links to non-existent template routes
-- Frontend: replace Horizon Digital logo/favicon with DeskHive assets
-- Backend: simplify `seed_demo` to bootstrap only the deploy demo admin user
-- Backend: update `seed_demo` tests and README
+- Add Material UI (`@mui/material`, `@emotion/*`, `@mui/icons-material`) with a
+  custom theme aligned to DeskHive CSS variables
+- Update `theme.css` to an indigo / slate / cyan palette with layered shadows
+- Enhance sidebar, dashboard layout, dashboard page, empty state, auth pages,
+  buttons, and dashboard cards with elevation and depth
+- Wrap app in `AppThemeProvider`; include theme in test utilities
+- Run frontend tests, ESLint, TypeScript check, and production build
 
 ### Out of scope
-- Dockerfiles, `.sunset/deploy.yaml`, nginx configs, docker-compose files
-- Root-level env/Makefile/setup scripts (Horizon Digital naming retained in infra)
-- Functional booking/spaces/admin API features
+- Backend changes
+- New routes or feature logic
+- Replacing every custom atom (Input, etc.) with MUI — existing components kept
+  for stability; MUI used for layout surfaces (Paper, Card, Avatar, Typography)
 
 ## Key Implementation Decisions
 
-1. **Branding** — Application-facing copy, `index.html`, `content/index.ts`,
-   `Logo`, and `favicon.svg` now use DeskHive. Login/Signup pages already
-   referenced DeskHive and were left as-is.
-2. **Dashboard** — Removed hard-coded workers/jobs metrics and sample job table.
-   Dashboard shows `EmptyState` plus quick links to `/desks`, `/rooms`, and
-   `/my/bookings`. `DashboardCard` molecule kept for design-system reuse.
-3. **Sidebar** — Trimmed to routes that exist: Dashboard, My Bookings, Book Desk,
-   Book Room, and admin sections. Removed jobs/calendar/clients/employees/invoicing/settings.
-4. **seed_demo** — Retained command name and `demo@sunset.dev` user required by
-   `.sunset/deploy.yaml`. Removed sample users, DEMO- floors/desks/rooms, and
-   bookings. No migration changes needed (demo data was never in migrations).
-5. **Deploy contract** — `.sunset/deploy.yaml` unchanged; `seed_demo` still satisfies
-   the `seed.command` and `demo_login.username` contract.
+1. **Material UI over Ant Design** — MUI integrates cleanly with the existing
+   CSS-variable design tokens and React 19 stack; used for elevated surfaces
+   (Paper, Card) rather than a full component rewrite.
+2. **Palette** — Primary indigo (`#4f46e5`), accent cyan (`#06b6d4`), slate
+   neutrals. Sidebar uses a dark gradient with glow on active nav items.
+3. **Depth** — New shadow tokens (`--hd-shadow-glow`, `--hd-shadow-sidebar`,
+   `--hd-shadow-2xl`) applied to cards, buttons, sidebar, and auth forms.
+4. **Dashboard** — Welcome header and quick-link tiles use MUI `Paper` / `Card`
+   with Lucide icons; same link paths and copy for navigation parity.
+5. **EmptyState** — MUI `Paper` + inbox icon; retains `role="status"` for a11y.
+6. **Auth** — Login/Signup containers wrapped in MUI `Paper` with gradient page
+   background; form fields unchanged (custom `Input` / `Button`).
+7. **Tests** — `renderWithProviders` wraps `AppThemeProvider` so MUI components
+   render correctly in Vitest.
 
 ## Files Changed
 
 | File | Why |
 |------|-----|
-| `frontend/index.html` | DeskHive title and meta description |
-| `frontend/env.example` | `VITE_APP_NAME=DeskHive` |
-| `frontend/public/favicon.svg` | Neutral DeskHive favicon (replaced 100KB template asset) |
-| `frontend/src/assets/images/deskhive-logo.svg` | New text logo |
-| `frontend/src/assets/images/HD_LOGO.*.svg` | Removed Horizon Digital logo |
-| `frontend/public/vite.svg` | Removed unused Vite default icon |
-| `frontend/src/components/atoms/Logo/Logo.tsx` | DeskHive logo component |
-| `frontend/src/content/index.ts` | DeskHive copy; sidebar/dashboard content |
-| `frontend/src/pages/dashboard/DashboardPage.tsx` | Empty state + quick links |
-| `frontend/src/pages/dashboard/DashboardPage.css` | Styles for new dashboard layout |
-| `frontend/src/components/organisms/Sidebar/Sidebar.tsx` | Real routes only |
-| `frontend/src/styles/theme.css` | Comment update |
-| `backend/src/spaces/management/commands/seed_demo.py` | Admin-user-only bootstrap |
-| `backend/src/spaces/tests/test_seed_demo.py` | Tests for simplified seeder |
-| `backend/README.md` | Updated seed_demo documentation |
+| `frontend/package.json` | MUI, Emotion, icons dependencies |
+| `frontend/package-lock.json` | Lockfile update |
+| `frontend/index.html` | Inter font, updated theme-color |
+| `frontend/src/main.tsx` | `AppThemeProvider` at app root |
+| `frontend/src/theme/muiTheme.ts` | MUI theme (palette, shadows, typography) |
+| `frontend/src/theme/AppThemeProvider.tsx` | ThemeProvider + CssBaseline wrapper |
+| `frontend/src/theme/index.ts` | Theme barrel export |
+| `frontend/src/styles/theme.css` | Modern palette and shadow tokens |
+| `frontend/src/styles/empty.css` | Elevated empty-state styling |
+| `frontend/src/components/organisms/Sidebar/Sidebar.css` | Gradient sidebar, nav glow |
+| `frontend/src/components/templates/DashboardLayout/DashboardLayout.css` | Subtle radial background |
+| `frontend/src/pages/dashboard/DashboardPage.tsx` | MUI Paper/Card quick links + header |
+| `frontend/src/pages/dashboard/DashboardPage.css` | Card hover depth, icon tiles |
+| `frontend/src/components/EmptyState.tsx` | MUI Paper + icon |
+| `frontend/src/pages/auth.css` | Gradient auth background, elevated card |
+| `frontend/src/pages/Login.tsx` | MUI Paper auth container |
+| `frontend/src/pages/Signup.tsx` | MUI Paper auth container |
+| `frontend/src/components/atoms/Button/Button.css` | Gradient primary, glow shadow |
+| `frontend/src/components/molecules/DashboardCard/DashboardCard.css` | Deeper card elevation |
+| `frontend/src/test/test-utils.tsx` | AppThemeProvider in test wrapper |
 
 ## Open Questions / Follow-ups
 
-- Root monorepo docs (`README.md`, `env.example`, docker-compose defaults) still
-  reference Horizon Digital infrastructure naming; update in a separate infra ticket
-  if desired.
-- Consider adding a `DashboardPage` Vitest smoke test for the empty state.
+- Consider migrating custom `Input` to MUI `TextField` in a follow-up for
+  consistent form styling.
+- Admin feature pages (`SpacesPage`, `UtilisationPage`) could adopt MUI tables
+  and tabs in a separate polish pass.
+- Dark-mode MUI theme variant could be wired to `prefers-color-scheme` explicitly.
 
 ## Verification
 
 ```bash
-# Frontend
 cd frontend && npm test && npm run lint && npm run build
-
-# Backend
-cd backend && SECRET_KEY=test-secret-key-for-ci ALLOW_DEMO_SEED=true DEBUG=true python3 -m pytest
-cd backend && SECRET_KEY=test-secret-key-for-ci DEBUG=true python3 manage.py migrate
 ```
 
 Results: 68 frontend tests passed; ESLint 0 errors (3 pre-existing warnings);
-production build succeeded. 129 backend tests passed; migrations apply cleanly.
+TypeScript and production build succeeded.

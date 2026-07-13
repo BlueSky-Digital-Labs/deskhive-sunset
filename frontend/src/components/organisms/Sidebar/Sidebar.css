@@ -9,12 +9,13 @@
   left: 0;
   top: 0;
   z-index: 1000;
-  border-right: 1px solid var(--hd-gray-800);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: var(--hd-shadow-sidebar);
 }
 
 .sidebar-header {
   padding: 1.5rem;
-  border-bottom: 1px solid var(--hd-gray-700);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -29,15 +30,16 @@
 .logo-circle {
   width: 40px;
   height: 40px;
-  background: #fbbf24;
+  background: linear-gradient(135deg, var(--hd-accent) 0%, var(--hd-secondary-light) 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.875rem;
   font-weight: 700;
-  color: #1a202c;
+  color: white;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35);
 }
 
 .logo-text h3 {
@@ -50,54 +52,58 @@
 
 .logo-text p {
   font-size: 0.625rem;
-  color: #a0aec0;
+  color: #94a3b8;
   margin: 0;
   letter-spacing: 0.1em;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 1rem 0;
+  padding: 1rem 0.75rem;
   overflow-y: auto;
 }
 
 .sidebar-nav__section {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--hd-gray-700);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-nav__section-label {
-  margin: 0 0 0.5rem 1.5rem;
-  font-size: 0.75rem;
+  margin: 0 0 0.5rem 1rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--hd-gray-400);
+  letter-spacing: 0.1em;
+  color: var(--hd-gray-500);
+  font-weight: 600;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.875rem 1.5rem;
-  color: #a0aec0;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.25rem;
+  color: #94a3b8;
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent;
+  transition: all var(--hd-transition-base);
+  border-radius: var(--hd-radius-lg);
+  border-left: none;
 }
 
 .nav-item:hover {
-  background: var(--hd-gray-700);
+  background: rgba(255, 255, 255, 0.06);
   color: white;
+  transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: var(--hd-sidebar-active);
+  background: linear-gradient(135deg, var(--hd-secondary) 0%, var(--hd-secondary-light) 100%);
   color: white;
-  border-left-color: var(--hd-sidebar-active);
   font-weight: 600;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
 }
 
 .nav-item.active svg {
@@ -106,7 +112,7 @@
 
 .sidebar-footer {
   padding: 1rem;
-  border-top: 1px solid var(--hd-gray-700);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   margin-top: auto;
 }
 
@@ -115,20 +121,22 @@
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.875rem 1rem;
-  background: none;
-  border: 1px solid #e53e3e;
-  color: #e53e3e;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
   font-size: 0.875rem;
   font-weight: 500;
-  border-radius: 0.375rem;
+  border-radius: var(--hd-radius-lg);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--hd-transition-base);
 }
 
 .logout-btn:hover {
-  background: #e53e3e;
+  background: var(--hd-error);
+  border-color: var(--hd-error);
   color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
 }
 
 /* Mobile Responsive */
@@ -139,45 +147,48 @@
     position: relative;
     flex-direction: row;
     padding: 0.5rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
   }
-  
+
   .sidebar-header {
     padding: 1rem;
     border-bottom: none;
-    border-right: 1px solid #2d3748;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
   }
-  
+
   .sidebar-nav {
     flex-direction: row;
     padding: 0;
     overflow-x: auto;
   }
-  
+
   .nav-item {
     flex-direction: column;
     padding: 0.75rem;
     min-width: 80px;
     text-align: center;
-    border-left: none;
-    border-bottom: 3px solid transparent;
+    border-radius: var(--hd-radius-md);
   }
-  
+
+  .nav-item:hover {
+    transform: none;
+  }
+
   .nav-item.active {
-    border-left: none;
-    border-bottom-color: #f59e0b;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
   }
-  
+
   .sidebar-footer {
     padding: 1rem;
     border-top: none;
-    border-left: 1px solid #2d3748;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
   }
-  
+
   .logout-btn {
     padding: 0.5rem;
     min-width: 60px;
   }
-  
+
   .logout-btn span {
     display: none;
   }

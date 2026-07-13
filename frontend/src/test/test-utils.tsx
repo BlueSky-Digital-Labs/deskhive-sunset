@@ -16,6 +16,7 @@ import type { DeskBookingState } from '@/features/desks/deskBookingsSlice'
 import type { RoomAvailabilityState } from '@/features/rooms/roomAvailabilitySlice'
 import type { RoomBookingState } from '@/features/rooms/roomBookingsSlice'
 import type { MyBookingsState } from '@/features/myBookings/myBookingsSlice'
+import { AppThemeProvider } from '@/theme'
 
 export function createTestStore(
   preloadedAuth?: Partial<AuthState>,
@@ -118,11 +119,13 @@ export function renderWithProviders(
 ) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <Provider store={store}>
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
-        </QueryClientProvider>
-      </Provider>
+      <AppThemeProvider>
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+          </QueryClientProvider>
+        </Provider>
+      </AppThemeProvider>
     )
   }
 
