@@ -1,10 +1,69 @@
+import { logout, selectAccessToken } from '@/features/auth/authSlice'
+import { HttpError, readJsonResponse } from '@/lib/http'
 import { apiFetch } from '@/lib/api'
+
+export { HttpError as ApiError } from '@/lib/http'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
+async function getStore() {
+  const module = await import('@/app/store')
+  return module.store
+}
+
+export interface FetchJsonOptions {
+  method: string
+  path: string
+  body?: unknown
+  auth?: boolean
+}
+
+export async function fetchJson<T>({
+  method,
+  path,
+  body,
+  auth = false,
+}: FetchJsonOptions): Promise<T> {
+  const store = await getStore()
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  })
+
+  if (auth) {
+    const accessToken = selectAccessToken(store.getState())
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`)
+    }
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  if (response.status === 401 && auth) {
+    store.dispatch(logout())
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.assign('/login')
+    }
+    const data = await response.text()
+    throw new HttpError(401, 'Authentication required', data)
+  }
+
+  return readJsonResponse<T>(response)
+}
 
 export interface PostBookingBody {
   resource_type: string
   resource_id: string
   start_at: string
   end_at: string
+}
+
+export interface DeskBookingBody {
+  desk_id: number
+  booking_date: string
 }
 
 export interface BookingRecord {
@@ -67,9 +126,26 @@ export async function postBooking(body: PostBookingBody): Promise<BookingRecord>
   })
 }
 
+export async function postDeskBooking(body: DeskBookingBody): Promise<BookingRecord> {
+  return fetchJson<BookingRecord>({
+    method: 'POST',
+    path: '/api/v1/bookings/',
+    body,
+    auth: true,
+  })
+}
+
 export async function postCancel(bookingId: string): Promise<void> {
   await apiFetch<void>(`/api/v1/bookings/${bookingId}/`, {
     method: 'DELETE',
+  })
+}
+
+export async function deleteDeskBooking(bookingId: string): Promise<void> {
+  await fetchJson<void>({
+    method: 'DELETE',
+    path: `/api/v1/bookings/${bookingId}/`,
+    auth: true,
   })
 }
 

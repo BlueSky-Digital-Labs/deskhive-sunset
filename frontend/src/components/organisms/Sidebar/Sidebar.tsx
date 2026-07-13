@@ -46,6 +46,16 @@ export const Sidebar = () => {
       path: '/my/bookings'
     },
     {
+      icon: Briefcase,
+      label: 'Book Desk',
+      path: '/desks'
+    },
+    {
+      icon: Calendar,
+      label: 'Book Room',
+      path: '/rooms'
+    },
+    {
       icon: Users,
       label: sidebarContent.menuItems.clients,
       path: '/clients'

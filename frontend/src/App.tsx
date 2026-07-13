@@ -11,6 +11,7 @@ import FloorsPage from '@/features/spaces/FloorsPage'
 import DesksPage from '@/features/spaces/DesksPage'
 import RoomsPage from '@/features/spaces/RoomsPage'
 import RoomsRoute from '@/routes/rooms/RoomsRoute'
+import DesksRoute from '@/routes/desks/DesksRoute'
 import MyBookingsRoute from '@/routes/my/MyBookingsRoute'
 import AdminRoutes from '@/routes/AdminRoutes'
 import AdminRoute from '@/routes/AdminRoute'
@@ -76,6 +77,14 @@ function App() {
         element={
           <ProtectedRoute>
             <RoomsRoute />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/desks"
+        element={
+          <ProtectedRoute>
+            <DesksRoute />
           </ProtectedRoute>
         }
       />
