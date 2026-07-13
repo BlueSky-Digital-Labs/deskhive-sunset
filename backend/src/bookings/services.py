@@ -1,12 +1,66 @@
 from datetime import date, datetime
 
 from django.db import IntegrityError, transaction
+from django.db.models import Case, DateTimeField, F, Q, Value, When
+from django.db.models.functions import Cast
 from django.db.utils import OperationalError
+from django.utils import timezone
 
 from spaces.models import Desk, Room
 
 from .exceptions import DeskAlreadyBooked, OnePerDayViolation, RoomAlreadyBooked
 from .models import Booking
+
+# Task/API status vocabulary maps to model values: pending/confirmed -> active.
+UPCOMING_STATUSES = (Booking.STATUS_ACTIVE, Booking.STATUS_CHECKED_IN)
+CANCELLABLE_STATUSES = (Booking.STATUS_ACTIVE,)
+PAST_TERMINAL_STATUSES = (Booking.STATUS_CANCELLED,)
+
+
+def is_booking_upcoming(booking: Booking) -> bool:
+    today = timezone.localdate()
+    now = timezone.now()
+    if booking.resource_type == Booking.RESOURCE_TYPE_DESK:
+        return booking.date >= today
+    if booking.resource_type == Booking.RESOURCE_TYPE_ROOM:
+        return booking.end_at is not None and booking.end_at >= now
+    return False
+
+
+def filter_bookings_by_bucket(queryset, bucket: str):
+    today = timezone.localdate()
+    now = timezone.now()
+    upcoming_time = Q(resource_type=Booking.RESOURCE_TYPE_DESK, date__gte=today) | Q(
+        resource_type=Booking.RESOURCE_TYPE_ROOM,
+        end_at__gte=now,
+    )
+    past_time = Q(resource_type=Booking.RESOURCE_TYPE_DESK, date__lt=today) | Q(
+        resource_type=Booking.RESOURCE_TYPE_ROOM,
+        end_at__lt=now,
+    )
+
+    if bucket == 'upcoming':
+        return queryset.filter(upcoming_time, status__in=UPCOMING_STATUSES)
+    if bucket == 'past':
+        return queryset.filter(past_time | Q(status__in=PAST_TERMINAL_STATUSES))
+    return queryset
+
+
+def annotate_booking_sort_at(queryset):
+    return queryset.annotate(
+        sort_at=Case(
+            When(
+                resource_type=Booking.RESOURCE_TYPE_DESK,
+                then=Cast('date', DateTimeField()),
+            ),
+            When(
+                resource_type=Booking.RESOURCE_TYPE_ROOM,
+                then=F('start_at'),
+            ),
+            default=Value(None),
+            output_field=DateTimeField(),
+        )
+    )
 
 
 def create_desk_booking(user, desk_id: int, booking_date: date) -> Booking:

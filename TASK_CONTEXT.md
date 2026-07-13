@@ -1,96 +1,93 @@
-# Task Context: Room Booking (Backend + Frontend)
+# Task Context: My Bookings (Backend + Frontend)
 
 ## Ticket Scope
 
-Full-stack room booking: backend API with overlap constraints and a React frontend for creating, viewing, and cancelling room reservations.
+Full-stack My Bookings: backend list/cancel APIs and a React screen for upcoming/past bookings with optimistic cancel and pagination.
 
 ### Backend (completed)
-- `bookings` app with UUID `Booking` model, `resource_id`, time slots, desk/room constraints
-- `create_room_booking`, `cancel_booking` services; REST API at `/api/v1/bookings/`
-- Room availability integration in `spaces/services/availability.py`
-- 70 backend tests passing
+- `GET /api/v1/my/bookings` with `bucket`, `resource_type`, pagination (20)
+- `POST /api/v1/bookings/{id}/cancel/` for upcoming active bookings
+- Extended `BookingSerializer` (`resource_label`, `is_upcoming`)
+- 43 backend bookings tests passing
 
 ### Frontend (this change)
-- `apiClient.ts` with `postBooking` and `postCancel` (maps to backend `room_id` payload and `DELETE` cancel)
-- Redux slices: `roomBookingsSlice`, `roomAvailabilitySlice`
-- `/rooms` route with date/time pickers, room list, book/cancel actions
-- Vitest coverage for thunks and `RoomsRoute` UI (success, 409 conflict, cancellation)
+- `myBookingsSlice` with paginated fetch + optimistic cancel/rollback
+- `MyBookingsRoute` at `/my/bookings` with Upcoming/Past tabs, URL query sync, pagination, skeleton/empty states
+- API client helpers: `getMyBookings`, `postBookingCancel`
+- Sidebar link and protected route
+- Vitest coverage for slice and route interactions
 
 ### Out of scope
-- Check-in workflow
-- Toast library (inline success/error panels used instead)
-- Celery booking tasks
+- Booking detail modal/drawer (list row shows schedule + status)
+- `resource_label` population (backend placeholder until Spaces BE)
+- Migrating `/rooms` page to the new cancel endpoint
 
 ## Key Implementation Decisions
 
 ### Backend
-1. Settings in `core.settings.base` (not flat `settings.py`); `django.contrib.postgres` for `ExclusionConstraint`
-2. Room create payload: `{ room_id, start_at, end_at }` (ISO 8601)
-3. Cancel via `DELETE /api/v1/bookings/{uuid}/` (idempotent 204)
-4. SQLite tests use service-layer overlap checks; PostgreSQL enforces `ExclusionConstraint` + `btree_gist`
+1. Status vocabulary maps `active` → pending/confirmed; cancellable = `active` only
+2. Bucket: upcoming uses desk `date >= today` / room `end_at >= now`; past uses inverse OR `cancelled`
+3. `is_upcoming` in serializer: desk `date >= today`, room `start_at >= now`
 
 ### Frontend
-1. **API client** — Task specifies `postBooking({ resource_type, resource_id, start_at, end_at })`; client maps `resource_type: 'room'` to backend `room_id`. `postCancel` uses `DELETE` (backend has no `/cancel` POST endpoint).
-2. **Store** — Slices registered in `frontend/src/store/index.ts` (project has no `app/store.ts`).
-3. **Availability** — `fetchRooms({ date })` calls `/api/v1/availability/rooms/?start=&end=` derived from date + optional time range; falls back to `GET /api/v1/rooms/` on failure (manual selection).
-4. **UI** — Separate date + time inputs combined to ISO strings; success shown as auto-dismissing inline panel (no toast library in project).
-5. **409 handling** — Mapped to `lastError: { code, message }` in `roomBookingsSlice`; displayed inline in `RoomsRoute`.
-6. **Auth** — `/rooms` guarded via existing `ProtectedRoute` / `selectIsAuthenticated`.
+1. **API client** — Task references `fetchJson`; project uses `apiFetch` from `@/lib/api` (same auth/refresh behavior)
+2. **Store** — Reducer registered in `frontend/src/store/index.ts` (no `app/store.ts` in repo)
+3. **Page cache key** — `${bucket}:${page}` in `pages` record for independent pagination state
+4. **Optimistic cancel** — Pending sets `status: cancelled` immediately; rejected restores rollback snapshot; failed cancel shows inline error + “Retry cancel”
+5. **Cancellable UI** — `is_upcoming` plus statuses `pending`/`confirmed`/`active` (maps backend `active`)
+6. **URL state** — `?bucket=upcoming|past&page=N` drives tab + pagination; tab switch resets to page 1
+7. **Navigation** — Protected `/my/bookings` route + sidebar “My Bookings” entry
 
 ## Assumptions
 
-- Room bookings use timezone-aware ISO datetimes from `new Date(date + time).toISOString()`.
-- Backend cancel is `DELETE`, not `POST .../cancel` as in the frontend task template.
-- Availability API uses `start`/`end` query params (not `date` alone); frontend derives range from date + times.
-- Existing `/spaces/rooms` availability page remains; `/rooms` is the booking workflow.
+- Backend paginated response shape: `{ count, next, previous, results }`
+- Cancel endpoint returns updated booking JSON (200)
+- Display `active` status as “confirmed” in UI
+- Rooms page on `/rooms` keeps existing `DELETE` cancel via `roomBookingsSlice`
 
 ## Files Changed
 
 ### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/*` | Model, services, API, migrations, tests |
-| `backend/src/core/settings/base.py` | `django.contrib.postgres` |
-| `backend/src/spaces/services/availability.py` | Room availability from bookings |
+| `backend/src/bookings/*` | My Bookings API, cancel action, tests, index |
 
 ### Frontend
 | File | Why |
 |------|-----|
-| `frontend/src/lib/apiClient.ts` | `postBooking`, `postCancel`, `getBookings` |
-| `frontend/src/features/rooms/roomBookingsSlice.ts` | Create/cancel thunks and state |
-| `frontend/src/features/rooms/roomAvailabilitySlice.ts` | `fetchRooms` with fallback |
-| `frontend/src/routes/rooms/RoomsRoute.tsx` | Booking UI |
-| `frontend/src/features/rooms/rooms.css` | Success panel and card actions |
-| `frontend/src/store/index.ts` | Register new reducers |
-| `frontend/src/App.tsx` | `/rooms` protected route |
-| `frontend/src/test/test-utils.tsx` | Test store includes room slices |
-| `frontend/src/features/rooms/*.test.ts` | Thunk unit tests |
-| `frontend/src/routes/rooms/RoomsRoute.test.tsx` | UI integration tests |
+| `frontend/src/features/myBookings/myBookingsSlice.ts` | State, fetch/cancel thunks |
+| `frontend/src/features/myBookings/myBookingsSlice.test.ts` | Thunk unit tests |
+| `frontend/src/features/myBookings/myBookings.css` | Screen styles |
+| `frontend/src/routes/my/MyBookingsRoute.tsx` | Unified bookings UI |
+| `frontend/src/routes/my/MyBookingsRoute.test.tsx` | Route integration tests |
+| `frontend/src/lib/apiClient.ts` | `getMyBookings`, `postBookingCancel`, `MyBooking` type |
+| `frontend/src/store/index.ts` | Register `myBookings` reducer |
+| `frontend/src/test/test-utils.tsx` | Test store includes `myBookings` |
+| `frontend/src/App.tsx` | Protected `/my/bookings` route |
+| `frontend/src/components/organisms/Sidebar/Sidebar.tsx` | Nav link |
+| `frontend/src/features/spaces/RoomsPage.test.tsx` | Stabilize datetime validation test |
 
-## API Endpoints (used by frontend)
+## API Endpoints (frontend)
 
-| Method | Path | Body / params |
-|--------|------|---------------|
-| POST | `/api/v1/bookings/` | `{ room_id, start_at, end_at }` |
-| DELETE | `/api/v1/bookings/{uuid}/` | Cancel booking |
-| GET | `/api/v1/bookings/` | List user bookings |
-| GET | `/api/v1/availability/rooms/` | `?start=&end=` (ISO 8601) |
-| GET | `/api/v1/rooms/` | Manual fallback room list |
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/v1/my/bookings/` | `?bucket=&page=` |
+| POST | `/api/v1/bookings/{uuid}/cancel/` | Optimistic cancel |
+| DELETE | `/api/v1/bookings/{uuid}/` | Still used by `/rooms` page |
 
 ## Open Questions / Follow-ups
 
-- Add `/rooms` link to sidebar navigation
-- Shared `conftest`/fixtures for desk and room booking tests
-- Check-in workflow (backend + frontend)
-- True PostgreSQL concurrent booking tests
+- Booking detail view / deep link to desk or room
+- Wire `resource_label` when Spaces API ready
+- Consolidate room page onto `myBookingsSlice` cancel endpoint
+- i18n for sidebar “My Bookings” label via content hook
 
 ## Verification
 
 ```bash
 # Backend
 cd backend
-SECRET_KEY=test-secret-key PYTHONPATH=src DJANGO_SETTINGS_MODULE=core.settings.test python3 manage.py migrate
-SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/ -v
+SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
 
 # Frontend
 cd frontend
@@ -99,5 +96,5 @@ npm run lint
 npm run build
 ```
 
-- Backend: 70 tests passing
-- Frontend: 24 tests passing
+- Backend bookings: 43 tests passing
+- Frontend: 34 tests passing

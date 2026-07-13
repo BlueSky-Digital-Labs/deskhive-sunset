@@ -6,6 +6,7 @@ import {
   LayoutDashboard, 
   Briefcase, 
   Calendar, 
+  CalendarDays,
   Users, 
   BarChart3, 
   Settings, 
@@ -36,6 +37,11 @@ export const Sidebar = () => {
       icon: Calendar,
       label: sidebarContent.menuItems.calendar,
       path: '/calendar'
+    },
+    {
+      icon: CalendarDays,
+      label: 'My Bookings',
+      path: '/my/bookings'
     },
     {
       icon: Users,

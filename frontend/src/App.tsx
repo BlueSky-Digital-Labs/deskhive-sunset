@@ -10,6 +10,7 @@ import FloorsPage from '@/features/spaces/FloorsPage'
 import DesksPage from '@/features/spaces/DesksPage'
 import RoomsPage from '@/features/spaces/RoomsPage'
 import RoomsRoute from '@/routes/rooms/RoomsRoute'
+import MyBookingsRoute from '@/routes/my/MyBookingsRoute'
 import ProtectedRoute from '@components/ProtectedRoute'
 
 function App() {
@@ -70,6 +71,14 @@ function App() {
         element={
           <ProtectedRoute>
             <RoomsRoute />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my/bookings"
+        element={
+          <ProtectedRoute>
+            <MyBookingsRoute />
           </ProtectedRoute>
         }
       />

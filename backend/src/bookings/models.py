@@ -61,6 +61,10 @@ class Booking(models.Model):
                 fields=['resource_type', 'resource_id', 'start_at', 'end_at'],
                 name='booking_resource_time_idx',
             ),
+            models.Index(
+                fields=['user', 'status', 'date'],
+                name='booking_user_status_date_idx',
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
