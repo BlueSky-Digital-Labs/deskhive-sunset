@@ -4,9 +4,9 @@
 export const content = {
   // Application Info
   app: {
-    name: 'Horizon Digital',
-    tagline: 'Your digital transformation partner for modern business solutions',
-    version: '3.1.0'
+    name: 'DeskHive',
+    tagline: 'Workspace booking for desks and meeting rooms',
+    version: '1.0.0',
   },
 
   // Authentication Pages
@@ -23,11 +23,11 @@ export const content = {
       loginButton: 'Sign In',
       noAccount: "Don't have an account?",
       signUpLink: 'Sign up here',
-      loginError: 'Invalid email or password. Please try again.'
+      loginError: 'Invalid email or password. Please try again.',
     },
     register: {
       title: 'Create Account',
-      subtitle: 'Join Horizon Digital today',
+      subtitle: 'Join DeskHive to book desks and rooms',
       emailLabel: 'Email Address',
       emailPlaceholder: 'Enter your email',
       passwordLabel: 'Password',
@@ -38,57 +38,56 @@ export const content = {
       hasAccount: 'Already have an account?',
       signInLink: 'Sign in here',
       registerError: 'Registration failed. Please try again.',
-      passwordMismatch: 'Passwords do not match'
-    }
+      passwordMismatch: 'Passwords do not match',
+    },
   },
 
   // Dashboard
   dashboard: {
     welcome: {
       title: 'Welcome back',
-      subtitle: 'Here\'s what\'s happening with your projects today'
+      subtitle: 'Book a desk or meeting room, or review your upcoming reservations.',
     },
-    cards: {
-      totalProjects: {
-        title: 'Total Projects',
-        description: 'Active projects in progress'
-      },
-      completedTasks: {
-        title: 'Completed Tasks',
-        description: 'Tasks finished this month'
-      },
-      teamMembers: {
-        title: 'Team Members',
-        description: 'Active team members'
-      },
-      revenue: {
-        title: 'Revenue',
-        description: 'Total revenue this quarter'
-      }
+    emptyState: {
+      title: 'No activity yet',
+      message:
+        'Your recent bookings and workspace activity will appear here once you make a reservation.',
     },
-    recentActivity: {
-      title: 'Recent Activity',
-      noActivity: 'No recent activity to show'
-    }
+    quickLinks: {
+      title: 'Get started',
+      items: [
+        {
+          label: 'Book a desk',
+          description: 'Find an available desk for today or another date.',
+          path: '/desks',
+        },
+        {
+          label: 'Book a room',
+          description: 'Reserve a meeting room for your team.',
+          path: '/rooms',
+        },
+        {
+          label: 'My bookings',
+          description: 'View and manage your upcoming reservations.',
+          path: '/my/bookings',
+        },
+      ],
+    },
   },
 
   // Sidebar Navigation
   sidebar: {
     menuItems: {
       dashboard: 'Dashboard',
-      jobs: 'Jobs',
-      calendar: 'Calendar',
-      clients: 'Clients',
-      employees: 'Employees',
-      invoicing: 'Invoicing',
-      skillMatrix: 'Skill Matrix',
-      discoverySession: 'Discovery Session',
-      feedback: 'Feedback',
-      settings: 'Settings'
+      myBookings: 'My Bookings',
+      bookDesk: 'Book Desk',
+      bookRoom: 'Book Room',
+      adminSpaces: 'Admin Spaces',
+      utilisation: 'Utilisation',
     },
     user: {
-      logout: 'Logout'
-    }
+      logout: 'Logout',
+    },
   },
 
   // Header
@@ -97,7 +96,7 @@ export const content = {
     dashboard: 'Dashboard',
     login: 'Login',
     register: 'Register',
-    logout: 'Logout'
+    logout: 'Logout',
   },
 
   // Common UI Elements
@@ -114,7 +113,7 @@ export const content = {
       close: 'Close',
       back: 'Back',
       next: 'Next',
-      previous: 'Previous'
+      previous: 'Previous',
     },
     messages: {
       loading: 'Loading...',
@@ -122,22 +121,22 @@ export const content = {
       success: 'Operation completed successfully',
       noData: 'No data available',
       unauthorized: 'You are not authorized to access this resource',
-      networkError: 'Network error. Please check your connection.'
+      networkError: 'Network error. Please check your connection.',
     },
     forms: {
       required: 'This field is required',
       invalidEmail: 'Please enter a valid email address',
       passwordTooShort: 'Password must be at least 8 characters',
-      passwordsNoMatch: 'Passwords do not match'
-    }
+      passwordsNoMatch: 'Passwords do not match',
+    },
   },
 
   // Meta Information
   meta: {
-    title: 'Horizon Digital',
-    description: 'Horizon Digital - Your digital transformation partner for modern business solutions',
-    keywords: 'digital transformation, business solutions, technology, consulting'
-  }
+    title: 'DeskHive',
+    description: 'DeskHive — workspace booking for desks and meeting rooms',
+    keywords: 'workspace, desk booking, meeting rooms, office',
+  },
 } as const
 
 // Type for content keys (for TypeScript support)
@@ -149,7 +148,7 @@ export type DashboardContentKey = keyof typeof content.dashboard
 export const getContent = (path: string): string => {
   const keys = path.split('.')
   let result: unknown = content
-  
+
   for (const key of keys) {
     if (result && typeof result === 'object' && key in result) {
       result = (result as Record<string, unknown>)[key]
@@ -158,6 +157,6 @@ export const getContent = (path: string): string => {
       return path // Return the path as fallback
     }
   }
-  
+
   return typeof result === 'string' ? result : path
 }
