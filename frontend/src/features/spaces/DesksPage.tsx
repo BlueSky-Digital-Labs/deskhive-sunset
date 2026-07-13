@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DashboardLayout } from '@components/templates/DashboardLayout'
 import { AvailabilityBadge } from '@components/AvailabilityBadge'
+import { EmptyState } from '@components/EmptyState'
 import { SkeletonList } from '@components/SkeletonList'
 import { Input } from '@components/atoms/Input'
 import { ApiError } from '@/lib/api'
@@ -134,9 +135,7 @@ export function DesksPage() {
         {loading && <SkeletonList count={6} />}
 
         {!loading && !error && filteredDesks.length === 0 && (
-          <div className="spaces-empty" role="status">
-            No desks available for the selected filters.
-          </div>
+          <EmptyState message="No desks available for the selected filters." />
         )}
 
         {!loading && filteredDesks.length > 0 && (

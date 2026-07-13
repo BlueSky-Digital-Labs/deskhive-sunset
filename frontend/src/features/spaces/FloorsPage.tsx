@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DashboardLayout } from '@components/templates/DashboardLayout'
+import { EmptyState } from '@components/EmptyState'
 import { SkeletonList } from '@components/SkeletonList'
 import { ApiError } from '@/lib/api'
 import { getFloors } from './api'
@@ -59,9 +60,7 @@ export function FloorsPage() {
         {loading && <SkeletonList count={4} />}
 
         {!loading && !error && floors.length === 0 && (
-          <div className="spaces-empty" role="status">
-            No floors found. Floors will appear here once they are configured.
-          </div>
+          <EmptyState message="No floors found. Floors will appear here once they are configured." />
         )}
 
         {!loading && floors.length > 0 && (
