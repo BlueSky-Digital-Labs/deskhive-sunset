@@ -5,12 +5,15 @@ import { AppDispatch, RootState } from '@store/index'
 import { refresh, selectIsAuthenticated } from '@store/authSlice'
 import Login from '@/pages/Login'
 import Signup from '@/pages/Signup'
+import NotFoundPage from '@/pages/NotFoundPage'
 import { DashboardPage } from '@pages/dashboard'
 import FloorsPage from '@/features/spaces/FloorsPage'
 import DesksPage from '@/features/spaces/DesksPage'
 import RoomsPage from '@/features/spaces/RoomsPage'
 import RoomsRoute from '@/routes/rooms/RoomsRoute'
 import MyBookingsRoute from '@/routes/my/MyBookingsRoute'
+import AdminRoutes from '@/routes/AdminRoutes'
+import AdminRoute from '@/routes/AdminRoute'
 import ProtectedRoute from '@components/ProtectedRoute'
 import { ToastProvider } from '@/lib/toast'
 
@@ -84,6 +87,17 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin/*"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminRoutes />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/404" element={<NotFoundPage />} />
       <Route path="/register" element={<Navigate to="/signup" replace />} />
       </Routes>
     </ToastProvider>

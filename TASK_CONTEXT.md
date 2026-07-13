@@ -1,96 +1,109 @@
-# Task Context: Booking Check-In (Backend + Frontend)
+# Task Context: Admin Spaces CRUD and Utilisation (Backend + Frontend)
 
 ## Ticket Scope
 
-Full-stack same-day booking check-in: backend API/auto-release (completed) and frontend My Bookings UI (this change).
+Admin management of spaces (floors, desks, rooms) and utilisation reporting across backend APIs and frontend admin screens.
 
 ### Backend (completed)
-- `POST /api/v1/bookings/{uuid}/check_in` — owner check-in with row locking
-- `auto_release_no_shows` Celery task with Beat schedule (every 5 minutes)
-- `GET /api/v1/admin/auto_release_health` — admin health probe
-- Settings: `AUTO_RELEASE_ENABLED`, `AUTO_RELEASE_CUTOFF_MINUTES`, `CHECK_IN_CUTOFF_LOCALTIME`
-- Booking status `released` for no-shows
-- 66 backend bookings tests passing
+- Admin CRUD viewsets under `/api/v1/admin/floors|desks|rooms/` with `IsAdminUser`
+- Optional `?is_active=true|false` filtering
+- `GET /api/v1/admin/utilisation` with `start_date`, `end_date`, optional `floor_id`
+- `/api/v1/auth/me/` exposes `is_staff` and `is_superuser` for frontend admin gating
 
 ### Frontend (this change)
-- `checkIn(bookingId)` API client at `frontend/src/api/bookings.ts`
-- `useCheckIn` hook wrapping Redux `checkInBooking` thunk with toast feedback
-- `BookingList` + `BookingStatusBadge` components with same-day check-in button
-- Optional `BookingDetail` component with shared check-in/status logic
-- Toast notifications for success and 409 conflict
-- 9 new frontend tests (45 total passing)
+- `/admin/spaces` tabbed CRUD UI for floors, desks, and rooms
+- `/admin/utilisation` date-range and floor-filtered utilisation dashboard
+- React Query hooks for admin spaces and utilisation data
+- Admin route gating (`isAdmin` from `/me`, non-admins redirected to `/404`)
+- Sidebar admin links for staff users
 
 ### Out of scope
-- Check-in on `/rooms` page (My Bookings is the entry point)
-- `resource_label` population
-- Desk cutoff time config on frontend (uses local date + backend enforcement)
+- Time-weighted room occupancy metrics
+- Moving auto-release health endpoint into `admin_api`
 
 ## Key Implementation Decisions
 
 ### Backend
-1. Check-in allowed on booking day only; desk cutoff from `CHECK_IN_CUTOFF_LOCALTIME`
-2. Auto-release sets `released` status (distinct from `cancelled`)
-3. `select_for_update(skip_locked=True)` for concurrent auto-release workers
+1. Separate public and admin viewsets — public `/api/v1/floors|desks|rooms/` remain `IsAuthenticated`
+2. Utilisation counts `active`, `checked_in`, `released` bookings; excludes `cancelled`
+3. `MeSerializer` includes `is_staff` / `is_superuser` for frontend role checks
 
 ### Frontend
-1. **No React Query / RTK Query** — project uses Redux Toolkit thunks; `useCheckIn` hook dispatches `checkInBooking` and updates `myBookings` page cache optimistically (mirrors cancel flow)
-2. **API layer** — new `frontend/src/api/bookings.ts` with `checkIn()` using existing `apiFetch`; maps 409 to `CheckInConflictError`
-3. **Eligibility** — `isCheckInEligible()` shows button when booking is today, upcoming, status in `pending|confirmed|active`, and (for rooms) within start/end window
-4. **UI** — extracted `BookingList` from `MyBookingsRoute`; status badges via `BookingStatusBadge` with color classes per status including `released`
-5. **Toasts** — lightweight `ToastProvider` in `lib/toast.tsx` (no new dependency); success on check-in, specific message on 409
-6. **Status labels** — `active` displayed as "confirmed"; `checked_in` as "checked in"
-
-## Assumptions
-
-- Backend returns 400 for most validation failures; 409 surfaced with same-day conflict copy per task spec
-- My Bookings list re-renders from Redux `pages` after optimistic check-in update
-- Local timezone used for same-day eligibility (aligned with browser locale)
+1. **React Query** — added `@tanstack/react-query` for admin list/mutation hooks (existing features remain Redux)
+2. **Admin gating** — `deriveIsAdmin()` checks `/me` staff flags with JWT payload fallback
+3. **Soft delete preference** — primary deactivation via `is_active` toggle; hard delete requires confirmation dialog
+4. **Error handling** — `403` surfaces "Admins only"; `401` redirects to login via existing `apiFetch` + page handlers
+5. **Reusable table** — `SpacesTable` parameterized by `SpaceKind` for floors/desks/rooms
 
 ## Files Changed
 
 ### Backend
 | File | Why |
 |------|-----|
-| `backend/src/bookings/*` | Check-in API, auto-release task, health, tests |
-| `backend/src/core/settings/base.py` | Auto-release settings and Beat schedule |
+| `backend/src/spaces/views.py` | Admin viewsets with `IsActiveFilterMixin` |
+| `backend/src/spaces/urls.py` | Admin router registration |
+| `backend/src/admin_api/*` | Utilisation service, view, tests |
+| `backend/src/core/settings/base.py` | Register `admin_api` app |
+| `backend/src/core/urls.py` | Include admin API URLs |
+| `backend/src/accounts/serializers.py` | Expose `is_staff` / `is_superuser` on `/me` |
+| `backend/src/spaces/tests/test_admin_crud.py` | Admin CRUD tests |
+| `backend/README.md` | Admin endpoint documentation |
 
 ### Frontend
 | File | Why |
 |------|-----|
-| `frontend/src/api/bookings.ts` | `checkIn()` API client |
-| `frontend/src/features/bookings/hooks/useCheckIn.ts` | Check-in hook with toast + Redux dispatch |
-| `frontend/src/features/bookings/utils.ts` | Eligibility helper, status label formatting |
-| `frontend/src/features/bookings/components/BookingList.tsx` | List with check-in/cancel actions |
-| `frontend/src/features/bookings/components/BookingStatusBadge.tsx` | Colored status badges |
-| `frontend/src/features/bookings/components/BookingDetail.tsx` | Optional detail view with check-in |
-| `frontend/src/features/myBookings/myBookingsSlice.ts` | `checkInBooking` thunk + optimistic cache |
-| `frontend/src/routes/my/MyBookingsRoute.tsx` | Uses `BookingList` |
-| `frontend/src/lib/toast.tsx` | Toast provider for success/error feedback |
-| `frontend/src/App.tsx` | Wrap app with `ToastProvider` |
-| `frontend/src/features/myBookings/myBookings.css` | `released` status badge color |
-| `frontend/src/features/bookings/hooks/useCheckIn.test.tsx` | Hook tests |
-| `frontend/src/features/bookings/components/BookingList.test.tsx` | UI tests |
+| `frontend/src/api/admin.ts` | Admin spaces CRUD + utilisation API client |
+| `frontend/src/features/admin/types.ts` | Admin domain types |
+| `frontend/src/features/admin/hooks/useSpaces.ts` | React Query hooks for spaces CRUD/toggle |
+| `frontend/src/features/admin/hooks/useUtilisation.ts` | React Query hook for utilisation report |
+| `frontend/src/features/admin/components/*` | `SpacesTable`, `SpaceFormModal`, confirm/status UI |
+| `frontend/src/features/admin/pages/SpacesPage.tsx` | Tabbed admin spaces management |
+| `frontend/src/features/admin/pages/UtilisationPage.tsx` | Utilisation dashboard |
+| `frontend/src/routes/AdminRoutes.tsx` | Nested `/admin` routes |
+| `frontend/src/routes/AdminRoute.tsx` | Admin-only route guard |
+| `frontend/src/pages/NotFoundPage.tsx` | 404 destination for non-admin users |
+| `frontend/src/utils/isAdmin.ts` | Admin role derivation |
+| `frontend/src/hooks/useAuth.ts` | Expose `isAdmin` |
+| `frontend/src/types/auth.ts` | Staff fields on `User` |
+| `frontend/src/App.tsx` | Wire admin and 404 routes |
+| `frontend/src/main.tsx` | `QueryClientProvider` |
+| `frontend/src/components/organisms/Sidebar/Sidebar.tsx` | Admin nav links |
+| `frontend/src/test/test-utils.tsx` | Query client test wrapper |
+| `frontend/package.json` | `@tanstack/react-query` dependency |
 
 ## API Endpoints
 
 | Method | Path | Notes |
 |--------|------|-------|
-| POST | `/api/v1/bookings/{uuid}/check_in` | Check-in; returns full booking |
-| GET | `/api/v1/my/bookings/` | List (unchanged) |
-| POST | `/api/v1/bookings/{uuid}/cancel/` | Cancel (unchanged) |
+| GET/POST | `/api/v1/admin/floors/` | Admin floor list/create |
+| GET/PATCH/DELETE | `/api/v1/admin/floors/{id}/` | Admin floor detail |
+| GET/POST | `/api/v1/admin/desks/` | Admin desk list/create |
+| GET/PATCH/DELETE | `/api/v1/admin/desks/{id}/` | Admin desk detail |
+| GET/POST | `/api/v1/admin/rooms/` | Admin room list/create |
+| GET/PATCH/DELETE | `/api/v1/admin/rooms/{id}/` | Admin room detail |
+| GET | `/api/v1/admin/utilisation` | Utilisation dashboard |
+| GET | `/api/v1/auth/me/` | Includes `is_staff`, `is_superuser` |
+
+## Frontend Routes
+
+| Path | Page |
+|------|------|
+| `/admin/spaces` | Spaces CRUD (Floors / Desks / Rooms tabs) |
+| `/admin/utilisation` | Utilisation summary + daily table |
+| `/404` | Not found / access denied fallback |
 
 ## Open Questions / Follow-ups
 
-- Distinct UI label for `released` no-shows in past tab
-- Share `CHECK_IN_CUTOFF_LOCALTIME` with frontend for desk button visibility
-- Check-in entry point on room booking page
+- Time-weighted room utilisation instead of booking-count rates
+- OpenAPI tags for admin endpoints in drf-spectacular
+- Dedicated "access denied" page copy vs generic 404
 
 ## Verification
 
 ```bash
 # Backend
 cd backend
-SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/bookings/tests/ -v
+SECRET_KEY=test-secret-key PYTHONPATH=src python3 -m pytest src/accounts/tests/ src/spaces/tests/ src/admin_api/tests/ -v
 
 # Frontend
 cd frontend
@@ -99,5 +112,5 @@ npm run lint
 npm run build
 ```
 
-- Backend bookings: 66 tests passing
-- Frontend: 45 tests passing
+- Backend: accounts + spaces + admin_api tests passing
+- Frontend: 51 tests passing; Vite build succeeds

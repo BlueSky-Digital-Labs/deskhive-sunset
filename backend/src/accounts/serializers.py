@@ -27,4 +27,4 @@ class RegistrationSerializer(serializers.ModelSerializer):
 class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'date_joined')
+        fields = ('id', 'email', 'date_joined', 'is_staff', 'is_superuser')

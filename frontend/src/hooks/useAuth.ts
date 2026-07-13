@@ -1,7 +1,8 @@
 import { useSelector, useDispatch } from 'react-redux'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { RootState, AppDispatch } from '@store/index'
 import { fetchProfile, logout, selectIsAuthenticated } from '@store/authSlice'
+import { deriveIsAdmin } from '@/utils/isAdmin'
 
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -9,6 +10,10 @@ export const useAuth = () => {
     (state: RootState) => state.auth,
   )
   const isAuthenticated = useSelector(selectIsAuthenticated)
+  const isAdmin = useMemo(
+    () => deriveIsAdmin(user, accessToken),
+    [user, accessToken],
+  )
 
   useEffect(() => {
     if (accessToken && !user) {
@@ -25,6 +30,7 @@ export const useAuth = () => {
     accessToken,
     refreshToken,
     isAuthenticated,
+    isAdmin,
     isLoading: status === 'loading',
     error,
     logout: handleLogout,

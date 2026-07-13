@@ -2,15 +2,17 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useSidebarContent } from '@hooks/useContent'
 import { Logo } from '@components/atoms/Logo'
-import { 
-  LayoutDashboard, 
-  Briefcase, 
-  Calendar, 
+import {
+  LayoutDashboard,
+  Briefcase,
+  Calendar,
   CalendarDays,
-  Users, 
-  BarChart3, 
-  Settings, 
-  LogOut 
+  Users,
+  BarChart3,
+  Settings,
+  LogOut,
+  Building2,
+  LineChart,
 } from 'lucide-react'
 import './Sidebar.css'
 
@@ -18,7 +20,7 @@ import './Sidebar.css'
 
 export const Sidebar = () => {
   const location = useLocation()
-  const { logout } = useAuth()
+  const { logout, isAdmin } = useAuth()
   const sidebarContent = useSidebarContent()
 
   const menuItems = [
@@ -65,6 +67,21 @@ export const Sidebar = () => {
     }
   ]
 
+  const adminMenuItems = isAdmin
+    ? [
+        {
+          icon: Building2,
+          label: 'Admin Spaces',
+          path: '/admin/spaces',
+        },
+        {
+          icon: LineChart,
+          label: 'Utilisation',
+          path: '/admin/utilisation',
+        },
+      ]
+    : []
+
   const handleLogout = () => {
     logout()
   }
@@ -91,6 +108,27 @@ export const Sidebar = () => {
             </Link>
           )
         })}
+
+        {adminMenuItems.length > 0 && (
+          <div className="sidebar-nav__section">
+            <p className="sidebar-nav__section-label">Admin</p>
+            {adminMenuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = location.pathname.startsWith(item.path)
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`nav-item ${isActive ? 'active' : ''}`}
+                >
+                  <Icon size={20} />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </nav>
 
       <div className="sidebar-footer">

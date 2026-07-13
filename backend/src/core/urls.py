@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/v1/auth/', include('accounts.urls')),
     path('api/v1/', include('spaces.urls')),
     path('api/v1/', include('bookings.urls')),
+    path('api/v1/', include('admin_api.urls')),
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
